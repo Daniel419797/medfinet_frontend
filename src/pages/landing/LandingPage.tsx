@@ -370,41 +370,7 @@ export default function LandingPage() {
       </section>
 
       {/* ──────────────────────────────────────
-          3. STATS STRIP
-      ────────────────────────────────────── */}
-      <section className="border-y border-slate-200 bg-white py-12">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="grid grid-cols-2 gap-8 divide-y divide-slate-100 sm:grid-cols-4 sm:divide-x sm:divide-y-0">
-            <div className="flex flex-col items-center text-center sm:px-4">
-              <span className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
-                <Counter value={40} suffix="+" />
-              </span>
-              <span className="mt-1 text-xs font-bold uppercase tracking-wider text-slate-500">API Endpoints</span>
-            </div>
-            <div className="flex flex-col items-center pt-6 text-center sm:px-4 sm:pt-0">
-              <span className="text-3xl font-extrabold tracking-tight text-primary-600 sm:text-4xl">
-                <Counter value={18} suffix="" />
-              </span>
-              <span className="mt-1 text-xs font-bold uppercase tracking-wider text-slate-500">Core Modules</span>
-            </div>
-            <div className="flex flex-col items-center pt-6 text-center sm:px-4 sm:pt-0">
-              <span className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
-                <Counter value={6} suffix="" />
-              </span>
-              <span className="mt-1 text-xs font-bold uppercase tracking-wider text-slate-500">Blockchain Anchors</span>
-            </div>
-            <div className="flex flex-col items-center pt-6 text-center sm:px-4 sm:pt-0">
-              <span className="text-3xl font-extrabold tracking-tight text-emerald-600 sm:text-4xl">
-                <Counter value={99} suffix="%" />
-              </span>
-              <span className="mt-1 text-xs font-bold uppercase tracking-wider text-slate-500">Test Verification</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ──────────────────────────────────────
-          4. INTERACTIVE FEATURE DEMO TOUR
+          3. INTERACTIVE FEATURE DEMO TOUR
       ────────────────────────────────────── */}
       <section id="demo" className="py-20 lg:py-28">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
@@ -431,11 +397,10 @@ export default function LandingPage() {
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(idx)}
-                      className={`flex items-center gap-2 border-b-2 px-5 py-3 text-xs font-bold uppercase tracking-wider transition ${
-                        isActive
+                      className={`flex items-center gap-2 border-b-2 px-5 py-3 text-xs font-bold uppercase tracking-wider transition ${isActive
                           ? "border-primary-600 text-primary-700 bg-primary-50/50"
                           : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800"
-                      }`}
+                        }`}
                     >
                       <Icon size={18} />
                       <span>{tab.label}</span>
