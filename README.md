@@ -53,17 +53,17 @@ MedfiNet Frontend (React / Vite)
 
 ## Features
 
-- 🔐 **Supabase Auth** — Email/password, session persistence, automatic token refresh.
-- 📋 **Digital Immunization Records** — Create, view, and share verified vaccination cards.
-- 📱 **QR Code Generation & Scanning** — Instant record lookup with `qrcode.react` and `jsqr`.
-- 📡 **NFC Tap Integration** — Tap NTAG215 wristbands to pull up a child's health record.
-- 🩺 **Telemedicine** — Book and join remote consultations directly in the app.
-- 🏆 **Rewards Dashboard** — View token balance, micro-incentive history, and redeem rewards.
-- 🌿 **Climate-Response Worklists** — Prioritized field-worker task queues for disaster zones.
-- 🗺️ **Interactive Maps** — Healthcare facility lookup with Leaflet and Mapbox GL.
-- 📊 **Analytics & Charts** — Population-level health metrics with Chart.js.
-- 🔗 **Algorand Wallet** — Connect PeraWallet to sign and verify on-chain health certificates.
-- 📶 **Offline Support** — LocalForage sync queue keeps data current across connectivity gaps.
+- **Supabase Auth** — Email/password, session persistence, automatic token refresh.
+- **Digital Immunization Records** — Create, view, and share verified vaccination cards.
+- **QR Code Generation & Scanning** — Instant record lookup with `qrcode.react` and `jsqr`.
+- **NFC Tap Integration** — Tap NTAG215 wristbands to pull up a child's health record.
+- **Telemedicine** — Book and join remote consultations directly in the app.
+- **Rewards Dashboard** — View token balance, micro-incentive history, and redeem rewards.
+- **Climate-Response Worklists** — Prioritized field-worker task queues for disaster zones.
+- **Interactive Maps** — Healthcare facility lookup with Leaflet and Mapbox GL.
+- **Analytics & Charts** — Population-level health metrics with Chart.js.
+- **Algorand Wallet** — Connect PeraWallet to sign and verify on-chain health certificates.
+- **Offline Support** — LocalForage sync queue keeps data current across connectivity gaps.
 
 ---
 
@@ -113,7 +113,7 @@ VITE_API_BASE_URL=https://medfinet-backend.onrender.com/api/v1
 VITE_MAPBOX_TOKEN=<your-mapbox-token>
 ```
 
-> ⚠️ Never commit `.env` to version control — all secrets must stay local or in your deployment platform's environment settings.
+> Never commit `.env` to version control — all secrets must stay local or in your deployment platform's environment settings.
 
 ---
 
