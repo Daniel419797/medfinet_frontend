@@ -1,0 +1,288 @@
+import { medfinetRequest as request } from './medfinetApiClient';
+
+export type NfcManifest = {
+  hardwareFamily: 'NTAG_215';
+  ndefUrlTemplate: string;
+  type2UserMemoryHex: string;
+  firstUserPage: number;
+  finalUserPage: number;
+  mirror: {
+    mode: 'UID_AND_COUNTER';
+    page: number;
+    byte: number;
+    uidCharacters: 14;
+    separator: 'x';
+    counterCharacters: 6;
+  };
+  protection: {
+    protectWritesFromPage: number;
+    protectReads: false;
+    enableCounter: true;
+    authenticationAttemptLimit: number;
+    lockConfiguration: true;
+  };
+  stationPlan: {
+    specification: string;
+    writeCommand: 'A2';
+    readSignatureCommand: '3C00';
+    pages: {
+      configuration: number;
+      access: number;
+      password: number;
+      pack: number;
+    };
+    configurationPageHex: string;
+    accessPageBeforeLockHex: string;
+    accessPageFinalHex: string;
+    passwordAndPackByteOrder: string;
+    requiresFieldRemovalBeforeLockVerification: boolean;
+    irreversibleConfigurationLock: boolean;
+  };
+};
+
+export type NfcDraft = {
+  credential: { id: string; childId: string; kind: 'NFC'; status: string };
+  binding: { id: string; publicId: string; status: string };
+  personalizationToken: string;
+  cardToken: string;
+  manifest: NfcManifest;
+};
+
+export type NfcPreparation = {
+  binding: { id: string; status: string; preparedAt: string };
+  access: { passwordHex: string; packHex: string };
+  protection: NfcManifest['protection'];
+};
+
+export const medfinetNfcApi = {
+  createDraft(
+    organizationId: string,
+    childId: string
+  ): Promise<NfcDraft> {
+    return request(`/children/${encodeURIComponent(childId)}/nfc-bindings`, {
+      method: 'POST',
+      body: {},
+      organizationId,
+      purpose: 'secure-card-provisioning',
+    });
+  },
+
+  prepare(
+    organizationId: string,
+    bindingId: string,
+    body: {
+      personalizationToken: string;
+      versionResponse: string;
+      uid: string;
+      originalitySignature: string;
+      originalityVerified: boolean;
+      deviceId: string;
+      deviceSignature: string;
+    }
+  ): Promise<NfcPreparation> {
+    return request(`/nfc-bindings/${encodeURIComponent(bindingId)}/prepare`, {
+      method: 'POST',
+      body,
+      organizationId,
+      purpose: 'secure-card-provisioning',
+    });
+  },
+
+  activate(
+    organizationId: string,
+    bindingId: string,
+    body: {
+      personalizationToken: string;
+      cardToken: string;
+      uc: string;
+      ndefReadback: string;
+      configurationPageHex: string;
+      accessPageHex: string;
+      packResponseHex: string;
+      writeProtected: boolean;
+      configurationLocked: boolean;
+      deviceId: string;
+      deviceSignature: string;
+    }
+  ) {
+    return request(`/nfc-bindings/${encodeURIComponent(bindingId)}/activate`, {
+      method: 'POST',
+      body,
+      organizationId,
+      purpose: 'secure-card-activation',
+    });
+  },
+
+  verifyPublicTap(publicId: string, uc: string, token: string) {
+    return request<{
+      recognized: boolean;
+      status: 'ACTIVE' | 'REVOKED' | 'REPLACED' | 'EXPIRED';
+      assurance: 'BASIC_NDEF';
+      scannerRequired: boolean;
+      message: string;
+    }>(
+      `/public/nfc/taps/${encodeURIComponent(publicId)}/recognize`,
+      {
+        method: 'POST',
+        body: { uc, t: token },
+        authenticated: false,
+      }
+    );
+  },
+
+  createChallenge(publicId: string, deviceId: string) {
+    return request<{ challengeToken: string; expiresAt: string }>(
+      '/nfc/scans/challenges',
+      {
+        method: 'POST',
+        body: { publicId, deviceId },
+        purpose: 'nfc-card-resolution',
+      }
+    );
+  },
+
+  resolveScan(body: {
+    challengeToken: string;
+    publicId: string;
+    cardToken: string;
+    uc: string;
+    originalitySignature?: string;
+    scanMode?: 'PWA_NDEF' | 'NATIVE_RAW';
+    deviceSignature: string;
+  }) {
+    return request<{
+      assurance: string;
+      child: {
+        id: string;
+        identityRedacted?: boolean;
+        medfinetId?: string;
+        firstName?: string;
+        lastName?: string;
+        dateOfBirth?: string;
+        sex?: string;
+      };
+      limitations: string[];
+      clinicalSummary: {
+        clinicalAccess: 'ALLOWED' | 'CONSENT_REQUIRED';
+        allergies: Array<{
+          id: string;
+          substanceDisplay: string;
+          reaction?: string;
+          severity: string;
+          criticality: string;
+        }>;
+        vaccination: {
+          dueCount: number;
+          overdueCount: number;
+          recordedDoses: number;
+          recommendations: Array<{
+            vaccineCode: string;
+            doseNumber: number;
+            status: string;
+            dueAt: string;
+          }>;
+        };
+        consent: { status: string; expiresAt: string | null };
+      };
+      actions: {
+        clinicalRecord?: string;
+        recordVaccination?: string;
+        emergencyAccess: string;
+      };
+    }>('/nfc/scans/resolve', {
+      method: 'POST',
+      body,
+      purpose: 'nfc-card-resolution',
+    });
+  },
+
+  registerDevice(
+    organizationId: string,
+    body: {
+      deviceIdentifier: string;
+      displayName: string;
+      platform: string;
+      appVersion: string;
+      publicKey: string;
+    }
+  ) {
+    return request<{ device: { id: string; displayName: string }; existing: boolean }>(
+      '/devices',
+      {
+        method: 'POST',
+        body,
+        organizationId,
+        purpose: 'nfc-scanner-registration',
+      }
+    );
+  },
+
+  setProvisioningCapability(
+    organizationId: string,
+    deviceId: string,
+    enabled: boolean
+  ) {
+    return request(`/devices/${encodeURIComponent(deviceId)}/nfc-provisioning-capability`, {
+      method: 'POST',
+      body: { enabled },
+      organizationId,
+      purpose: 'nfc-station-approval',
+    });
+  },
+
+  revokeDevice(organizationId: string, deviceId: string, reason: string) {
+    return request(`/devices/${encodeURIComponent(deviceId)}/revoke`, {
+      method: 'POST', body: { status: 'REVOKED', reason }, organizationId,
+      purpose: 'device-administration',
+    });
+  },
+
+  revokeBinding(organizationId: string, bindingId: string, reason: string) {
+    return request(`/nfc-bindings/${encodeURIComponent(bindingId)}/revoke`, {
+      method: 'POST', body: { reason }, organizationId,
+      purpose: 'secure-card-lifecycle',
+    });
+  },
+
+  replaceBinding(organizationId: string, bindingId: string, reason: string, expiresAt?: string) {
+    return request<NfcDraft>(`/nfc-bindings/${encodeURIComponent(bindingId)}/replace`, {
+      method: 'POST', body: { reason, expiresAt }, organizationId,
+      purpose: 'secure-card-lifecycle',
+    });
+  },
+
+  cancelProvisioning(organizationId: string, bindingId: string, reason: string) {
+    return request(`/nfc-bindings/${encodeURIComponent(bindingId)}/cancel`, {
+      method: 'POST',
+      body: { reason },
+      organizationId,
+      purpose: 'secure-card-provisioning',
+    });
+  },
+
+  listChildBindings(organizationId: string, childId: string) {
+    return request<Array<{
+      id: string;
+      publicId: string;
+      status: 'PENDING' | 'ACTIVE' | 'FAILED' | 'REVOKED';
+      provisioningExpiresAt: string;
+      createdAt: string;
+      credential: { id: string; status: string; expiresAt: string | null };
+    }>>(`/children/${encodeURIComponent(childId)}/nfc-bindings`, {
+      organizationId,
+      purpose: 'secure-card-provisioning',
+    });
+  },
+
+  operationsSummary(organizationId: string) {
+    return request<{
+      generatedAt: string;
+      bindings: Partial<Record<'PENDING' | 'ACTIVE' | 'FAILED' | 'REVOKED', number>>;
+      pendingChallenges: number;
+      scansLast24Hours: Record<string, number>;
+    }>('/nfc/operations/summary', {
+      organizationId,
+      purpose: 'nfc-operations-monitoring',
+    });
+  },
+};

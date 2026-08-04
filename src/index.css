@@ -1,0 +1,158 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color: #10223f;
+    background: #f7f9fb;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+  }
+
+  * {
+    scrollbar-color: #cbd5e1 transparent;
+    scrollbar-width: thin;
+  }
+
+  html {
+    @apply max-w-full scroll-smooth overflow-x-hidden bg-slate-50 font-sans text-slate-800 antialiased;
+  }
+
+  body {
+    @apply m-0 min-w-0 max-w-full overflow-x-hidden bg-slate-50 text-[15px] text-slate-800;
+  }
+
+  #root { @apply min-h-screen max-w-full overflow-x-hidden; }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2;
+  }
+
+  button,
+  select {
+    @apply cursor-pointer;
+  }
+
+  button:disabled,
+  select:disabled {
+    @apply cursor-not-allowed;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply tracking-[-0.025em] text-slate-950 dark:text-white;
+  }
+
+  h1 { @apply text-3xl font-extrabold leading-tight md:text-[2rem]; }
+  h2 { @apply text-xl font-bold leading-tight md:text-2xl; }
+  h3 { @apply text-lg font-bold leading-snug; }
+  h4 { @apply text-base font-bold leading-snug; }
+  p { @apply leading-relaxed; }
+
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea {
+    @apply min-h-11 rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 hover:border-slate-400 focus:border-primary-600 focus:ring-primary-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100;
+  }
+
+  table { @apply w-full border-collapse; }
+  th { @apply text-left text-xs font-bold uppercase tracking-[0.08em] text-slate-500; }
+  td { @apply text-sm text-slate-700 dark:text-slate-200; }
+}
+
+@layer components {
+  .mf-page {
+    @apply mx-auto w-full max-w-[1500px] space-y-6;
+  }
+
+  .mf-page-header {
+    @apply flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-start lg:justify-between dark:border-slate-700;
+  }
+
+  .mf-eyebrow {
+    @apply text-xs font-bold uppercase tracking-[0.14em] text-primary-700 dark:text-primary-300;
+  }
+
+  .mf-description {
+    @apply mt-2 max-w-3xl text-sm text-slate-600 dark:text-slate-300;
+  }
+
+  .mf-surface {
+    @apply overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] dark:border-slate-700 dark:bg-slate-900;
+  }
+
+  .mf-surface-header {
+    @apply flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-700;
+  }
+
+  .mf-row {
+    @apply border-b border-slate-100 px-5 py-4 last:border-b-0 dark:border-slate-800;
+  }
+
+  .mf-button {
+    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-transparent px-4 py-2 text-sm font-bold transition disabled:pointer-events-none disabled:opacity-45;
+  }
+
+  .mf-button-primary {
+    @apply mf-button bg-primary-600 text-white shadow-sm hover:bg-primary-700;
+  }
+
+  .mf-button-secondary {
+    @apply mf-button border-slate-300 bg-white text-slate-800 hover:border-slate-400 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100;
+  }
+
+  .mf-button-danger {
+    @apply mf-button bg-rose-700 text-white hover:bg-rose-800;
+  }
+
+  .mf-icon-button {
+    @apply inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800;
+  }
+
+  .mf-status {
+    @apply inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-bold;
+  }
+
+  .mf-stat-strip {
+    @apply grid divide-y divide-slate-200 border-y border-slate-200 bg-white sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4 dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-900;
+  }
+
+  .mf-stat {
+    @apply flex min-w-0 items-center gap-3 px-4 py-4;
+  }
+
+  .btn { @apply mf-button; }
+  .btn-primary { @apply mf-button-primary; }
+  .btn-secondary { @apply mf-button bg-secondary-600 text-white hover:bg-secondary-700; }
+  .btn-outline { @apply mf-button-secondary; }
+  .card { @apply mf-surface; }
+  .input { @apply w-full; }
+  .badge { @apply mf-status; }
+  .badge-success { @apply bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300; }
+  .badge-warning { @apply bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300; }
+  .badge-error { @apply bg-rose-50 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300; }
+  .badge-blockchain { @apply bg-cyan-50 text-cyan-800 dark:bg-cyan-950/50 dark:text-cyan-300; }
+  .blockchain-hash { @apply rounded-md bg-slate-100 px-2 py-1 font-mono text-xs tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300; }
+
+  .nfc-action {
+    @apply mf-button-secondary min-h-12 text-center;
+  }
+  .nfc-action-primary { @apply border-primary-600 text-primary-700 hover:bg-primary-50; }
+  .nfc-action-danger { @apply border-rose-600 text-rose-700 hover:bg-rose-50; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,13 @@
+import { medfinetRequest } from './medfinetApiClient';
+
+export type ConsentGrant = { id: string; childId: string; recipientType: string; recipientId: string; purpose: string; legalBasis: string; policyVersion: string; captureMethod: string; status: string; startsAt: string; expiresAt?: string | null; grantedByCaregiverId: string; scopes: Array<{ category: string; access: 'READ' | 'WRITE' }> };
+export type ChildCredential = { id: string; childId: string; kind: 'QR' | 'NFC' | 'RECOVERY'; status: string; expiresAt?: string | null; lastScannedAt?: string | null; createdAt: string; revokedReason?: string | null };
+export const medfinetSafetyApi = {
+  listConsents: (organizationId: string, childId: string) => medfinetRequest<ConsentGrant[]>(`/children/${childId}/consents?includeInactive=true`, { organizationId, purpose: 'consent-administration' }),
+  grantConsent: (organizationId: string, childId: string, body: { grantedByCaregiverId: string; recipientType: string; recipientId: string; purpose: string; legalBasis: string; policyVersion: string; captureMethod: string; expiresAt?: string; scopes: Array<{ category: string; access: 'READ' | 'WRITE' }> }) => medfinetRequest<ConsentGrant>(`/children/${childId}/consents`, { method: 'POST', body, organizationId, purpose: 'consent-administration' }),
+  withdrawConsent: (organizationId: string, consentId: string, reason: string) => medfinetRequest<ConsentGrant>(`/consents/${consentId}/withdraw`, { method: 'POST', body: { reason }, organizationId, purpose: 'consent-administration' }),
+  listCredentials: (organizationId: string, childId?: string) => medfinetRequest<ChildCredential[]>(`/credentials?limit=100${childId ? `&childId=${encodeURIComponent(childId)}` : ''}`, { organizationId, purpose: 'credential-administration' }),
+  issueCredential: (organizationId: string, childId: string, body: { kind: 'QR' | 'RECOVERY'; expiresAt?: string }) => medfinetRequest<{ credential: ChildCredential; token: string }>(`/children/${childId}/credentials`, { method: 'POST', body, organizationId, purpose: 'credential-administration' }),
+  revokeCredential: (organizationId: string, credentialId: string, reason: string) => medfinetRequest<ChildCredential>(`/credentials/${credentialId}/revoke`, { method: 'POST', body: { reason }, organizationId, purpose: 'credential-administration' }),
+  replaceCredential: (organizationId: string, credentialId: string, body: { kind: 'QR' | 'RECOVERY'; reason: string; expiresAt?: string }) => medfinetRequest<{ credential: ChildCredential; token: string }>(`/credentials/${credentialId}/replace`, { method: 'POST', body, organizationId, purpose: 'credential-administration' }),
+};
