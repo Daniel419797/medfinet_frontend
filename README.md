@@ -20,6 +20,8 @@ MedfiNet puts a child's full health history — vaccinations, nutrition intake, 
 
 ## Architecture Overview
 
+![MedfiNet Architecture Diagram](./docs/architecture.png)
+
 ```
 MedfiNet Frontend (React / Vite)
        │
