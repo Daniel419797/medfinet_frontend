@@ -8,6 +8,7 @@ export default function WalletStatusButton() {
   const { health, loading, walletAddress, walletConnecting, walletError, connectWallet, disconnectWallet } = useBlockchain();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const walletEnabled = Boolean(health?.enabled && (health.walletConnect?.enabled ?? true));
 
   useEffect(() => {
     const close = (event: MouseEvent) => { if (!rootRef.current?.contains(event.target as Node)) setOpen(false); };
@@ -15,7 +16,7 @@ export default function WalletStatusButton() {
     return () => document.removeEventListener("mousedown", close);
   }, []);
 
-  if (loading || !health?.enabled || !health.reachable || !health.walletConnect?.enabled) return null;
+  if (loading || !walletEnabled || !health?.reachable) return null;
 
   if (!walletAddress) {
     return (
