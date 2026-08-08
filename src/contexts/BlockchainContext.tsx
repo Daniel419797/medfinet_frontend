@@ -1,11 +1,10 @@
-import { PeraWalletConnect } from "@perawallet/connect";
-import { decodeUnsignedTransaction, type Transaction } from "algosdk";
 import {
   createContext,
   useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -17,9 +16,39 @@ import {
 
 type BlockchainFeature = "anchors" | "donations" | "escrow";
 type PeraChainId = 416001 | 416002 | 416003 | 4160;
+
+type WalletTransaction = {
+  toByte: () => Uint8Array;
+};
+
 type SignerTransaction = {
-  txn: Transaction;
+  txn: WalletTransaction;
   signers?: string[];
+};
+
+type PeraConnector = {
+  on?: (event: string, listener: (...args: unknown[]) => void) => void;
+};
+
+type PeraWalletInstance = {
+  connect: () => Promise<string[]>;
+  reconnectSession: () => Promise<string[]>;
+  disconnect: () => Promise<void | undefined>;
+  signTransaction: (
+    transactionGroups: SignerTransaction[][],
+    signerAddress?: string,
+  ) => Promise<Uint8Array[]>;
+  connector?: PeraConnector | null;
+};
+
+type PeraWalletConstructor = new (options?: {
+  chainId?: PeraChainId;
+  shouldShowSignTxnToast?: boolean;
+}) => PeraWalletInstance;
+
+type WalletSdk = {
+  PeraWalletConnect: PeraWalletConstructor;
+  decodeUnsignedTransaction: (bytes: Uint8Array) => WalletTransaction;
 };
 
 type BlockchainContextValue = {
@@ -35,6 +64,17 @@ type BlockchainContextValue = {
   disconnectWallet: () => Promise<void>;
   signTransactions: (unsignedTransactions: string[]) => Promise<string[]>;
 };
+
+const DEFAULT_PERA_MODULE_URL =
+  "https://esm.sh/@perawallet/connect@1.4.2?bundle&deps=algosdk@3.3.1";
+const DEFAULT_ALGOSDK_MODULE_URL = "https://esm.sh/algosdk@3.3.1?bundle";
+
+const PERA_MODULE_URL =
+  import.meta.env.VITE_PERA_CONNECT_MODULE_URL || DEFAULT_PERA_MODULE_URL;
+const ALGOSDK_MODULE_URL =
+  import.meta.env.VITE_ALGOSDK_MODULE_URL || DEFAULT_ALGOSDK_MODULE_URL;
+
+let walletSdkPromise: Promise<WalletSdk> | null = null;
 
 const BlockchainContext = createContext<BlockchainContextValue>({
   health: null,
@@ -76,6 +116,54 @@ function errorMessage(reason: unknown) {
   return "Wallet operation failed";
 }
 
+function moduleExport<T>(module: Record<string, unknown>, name: string): T | undefined {
+  const direct = module[name];
+  if (direct) return direct as T;
+
+  const defaultExport = module.default;
+  if (defaultExport && typeof defaultExport === "object") {
+    return (defaultExport as Record<string, unknown>)[name] as T | undefined;
+  }
+
+  return undefined;
+}
+
+async function importBrowserModule(url: string) {
+  return (await import(/* @vite-ignore */ url)) as Record<string, unknown>;
+}
+
+async function loadWalletSdk(): Promise<WalletSdk> {
+  if (!walletSdkPromise) {
+    walletSdkPromise = Promise.all([
+      importBrowserModule(PERA_MODULE_URL),
+      importBrowserModule(ALGOSDK_MODULE_URL),
+    ])
+      .then(([peraModule, algosdkModule]) => {
+        const PeraWalletConnect = moduleExport<PeraWalletConstructor>(
+          peraModule,
+          "PeraWalletConnect",
+        );
+        const decodeUnsignedTransaction = moduleExport<
+          (bytes: Uint8Array) => WalletTransaction
+        >(algosdkModule, "decodeUnsignedTransaction");
+
+        if (!PeraWalletConnect || !decodeUnsignedTransaction) {
+          throw new Error("The wallet modules did not expose the expected APIs");
+        }
+
+        return { PeraWalletConnect, decodeUnsignedTransaction };
+      })
+      .catch((reason) => {
+        walletSdkPromise = null;
+        throw new Error(
+          `Unable to load the Pera Wallet integration: ${errorMessage(reason)}`,
+        );
+      });
+  }
+
+  return walletSdkPromise;
+}
+
 export function BlockchainProvider({ children }: { children: ReactNode }) {
   const { organizationId } = useContext(UserContext);
   const [health, setHealth] = useState<BlockchainHealth | null>(null);
@@ -84,12 +172,28 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [walletConnecting, setWalletConnecting] = useState(false);
   const [walletError, setWalletError] = useState<string | null>(null);
+  const walletRef = useRef<PeraWalletInstance | null>(null);
+  const walletChainRef = useRef<PeraChainId | null>(null);
 
   const chainId = (health?.walletConnect?.chainId || 4160) as PeraChainId;
-  const peraWallet = useMemo(
-    () => new PeraWalletConnect({ chainId, shouldShowSignTxnToast: true }),
-    [chainId],
-  );
+
+  const getWallet = useCallback(async () => {
+    const sdk = await loadWalletSdk();
+
+    if (!walletRef.current || walletChainRef.current !== chainId) {
+      walletRef.current = new sdk.PeraWalletConnect({
+        chainId,
+        shouldShowSignTxnToast: true,
+      });
+      walletChainRef.current = chainId;
+      walletRef.current.connector?.on?.("disconnect", () => {
+        setWalletAddress(null);
+        setWalletError(null);
+      });
+    }
+
+    return { wallet: walletRef.current, sdk };
+  }, [chainId]);
 
   const refreshCapabilities = useCallback(async () => {
     if (!organizationId) {
@@ -128,19 +232,22 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
     }
 
     let cancelled = false;
-    peraWallet
-      .reconnectSession()
+    getWallet()
+      .then(({ wallet }) => wallet.reconnectSession())
       .then((accounts) => {
         if (!cancelled) setWalletAddress(accounts[0] || null);
       })
-      .catch(() => {
-        if (!cancelled) setWalletAddress(null);
+      .catch((reason) => {
+        if (!cancelled) {
+          setWalletAddress(null);
+          setWalletError(errorMessage(reason));
+        }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [health?.enabled, health?.reachable, health?.walletConnect?.enabled, peraWallet]);
+  }, [getWallet, health?.enabled, health?.reachable, health?.walletConnect?.enabled]);
 
   const featureEnabled = useCallback(
     (feature: BlockchainFeature) => Boolean(health?.enabled && health.features?.[feature]),
@@ -155,7 +262,8 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
     setWalletConnecting(true);
     setWalletError(null);
     try {
-      const accounts = await peraWallet.connect();
+      const { wallet } = await getWallet();
+      const accounts = await wallet.connect();
       const address = accounts[0];
       if (!address) throw new Error("Pera Wallet did not return an account");
       setWalletAddress(address);
@@ -167,13 +275,13 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
     } finally {
       setWalletConnecting(false);
     }
-  }, [health, peraWallet]);
+  }, [getWallet, health]);
 
   const disconnectWallet = useCallback(async () => {
-    await peraWallet.disconnect();
+    if (walletRef.current) await walletRef.current.disconnect();
     setWalletAddress(null);
     setWalletError(null);
-  }, [peraWallet]);
+  }, []);
 
   const signTransactions = useCallback(
     async (unsignedTransactions: string[]) => {
@@ -185,14 +293,18 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
         throw new Error("No unsigned transactions were returned by the backend");
       }
 
+      const { wallet, sdk } = await getWallet();
       const signerGroup: SignerTransaction[] = unsignedTransactions.map((encoded) => ({
-        txn: decodeUnsignedTransaction(base64ToBytes(encoded)),
+        txn: sdk.decodeUnsignedTransaction(base64ToBytes(encoded)),
         signers: [walletAddress],
       }));
-      const signedTransactions = await peraWallet.signTransaction([signerGroup]);
+      const signedTransactions = await wallet.signTransaction(
+        [signerGroup],
+        walletAddress,
+      );
       return signedTransactions.map(bytesToBase64);
     },
-    [health?.enabled, health?.reachable, peraWallet, walletAddress],
+    [getWallet, health?.enabled, health?.reachable, walletAddress],
   );
 
   const value = useMemo<BlockchainContextValue>(
