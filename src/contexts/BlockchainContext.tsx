@@ -1,4 +1,4 @@
-import { PeraWalletConnect, type SignerTransaction } from "@perawallet/connect";
+import { PeraWalletConnect } from "@perawallet/connect";
 import algosdk from "algosdk";
 import {
   createContext,
@@ -17,6 +17,10 @@ import {
 
 type BlockchainFeature = "anchors" | "donations" | "escrow";
 type PeraChainId = 416001 | 416002 | 416003 | 4160;
+type SignerTransaction = {
+  txn: algosdk.Transaction;
+  signers?: string[];
+};
 
 type BlockchainContextValue = {
   health: BlockchainHealth | null;
