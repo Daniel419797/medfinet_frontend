@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "types": ["vite/client"]
+  },
+  "files": [
+    "src/pages/landing/LandingPage.tsx",
+    "src/pages/offline/OfflineSync.tsx",
+    "src/components/auth/AuthenticatedRoute.tsx",
+    "src/contexts/UserContext.tsx",
+    "src/services/medfinetAuthApi.ts",
+    "src/services/medfinetApiClient.ts",
+    "src/services/supabaseClient.ts"
+  ],
+  "include": []
+}

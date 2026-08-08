@@ -11,9 +11,8 @@ import {
   medfinetSessionApi,
   type OrganizationMembership,
 } from "../services/medfinetSessionApi";
-import { medfinetAuthApi, persistToken } from "../services/medfinetAuthApi";
+import { medfinetAuthApi } from "../services/medfinetAuthApi";
 import { supabase } from "../services/supabaseClient";
-
 
 interface UserContextType {
   user: User | null;
@@ -54,6 +53,7 @@ function sessionUser(
       : typeof metadata.full_name === "string"
         ? metadata.full_name
         : sessionUser.email?.split("@")[0] || "Medfinet user";
+
   return {
     id: sessionUser.id,
     name: displayName,
@@ -66,9 +66,7 @@ function sessionUser(
 
 export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [organizationId, setOrganizationIdState] = useState<string | null>(
-    null,
-  );
+  const [organizationId, setOrganizationIdState] = useState<string | null>(null);
   const [memberships, setMemberships] = useState<OrganizationMembership[]>([]);
   const [sessionReady, setSessionReady] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
@@ -76,6 +74,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const refreshSession = useCallback(async () => {
     setSessionReady(false);
     setSessionError(null);
+
     try {
       const userSession = await medfinetAuthApi.getSession();
       if (!userSession) {
@@ -84,6 +83,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setOrganizationIdState(null);
         return;
       }
+
       const available = await medfinetSessionApi.organizations();
       const savedId = localStorage.getItem("medfinet_org_id");
       const selected =
@@ -91,12 +91,16 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         available.find((entry) => entry.organization.status === "ACTIVE") ||
         available[0] ||
         null;
+
       setMemberships(available);
       setOrganizationIdState(selected?.organization.id || null);
       setUser(sessionUser(userSession, selected?.role || "UNASSIGNED"));
-      if (selected)
+
+      if (selected) {
         localStorage.setItem("medfinet_org_id", selected.organization.id);
-      else localStorage.removeItem("medfinet_org_id");
+      } else {
+        localStorage.removeItem("medfinet_org_id");
+      }
     } catch (error) {
       setSessionError(
         error instanceof Error
@@ -113,17 +117,14 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     void refreshSession();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.access_token) {
-        persistToken(session.access_token, session.refresh_token || null);
-      } else if (event === "SIGNED_OUT") {
-        persistToken(null, null);
-      }
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
       void refreshSession();
     });
-    return () => {
-      subscription.unsubscribe();
-    };
+
+    return () => subscription.unsubscribe();
   }, [refreshSession]);
 
   const currentMembership = useMemo(
@@ -138,6 +139,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       (entry) => entry.organization.id === id,
     );
     if (!membership) return;
+
     setOrganizationIdState(id);
     localStorage.setItem("medfinet_org_id", id);
     setUser((current) =>

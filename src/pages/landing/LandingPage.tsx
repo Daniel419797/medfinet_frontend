@@ -1,651 +1,565 @@
-import { useState, useEffect, useRef } from "react";
 import {
   ArrowRight,
+  Buildings,
+  CaretRight,
   CheckCircle,
-  ShieldCheck,
+  CloudArrowUp,
+  DeviceMobile,
   Fingerprint,
+  GlobeHemisphereWest,
   Heartbeat,
   LockKey,
-  GlobeHemisphereWest,
-  DeviceMobile,
-  Buildings,
-  ChartLineUp,
-  Lightning,
-  Sparkle,
-  Quotes,
-  CaretDown,
-  Check,
-  CirclesThreePlus,
-  TreeStructure,
+  ShieldCheck,
+  UsersThree,
 } from "@phosphor-icons/react";
 import { Link } from "react-router-dom";
 
-/* ─── Scroll Reveal Component ─── */
-function Reveal({
-  children,
-  className = "",
-  delay = 0,
-}: {
-  children: React.ReactNode;
-  className?: string;
-  delay?: number;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
+const pillars = [
+  {
+    icon: Fingerprint,
+    label: "Verified identity",
+    text: "Child records, identifiers and caregiver relationships managed through governed workflows.",
+  },
+  {
+    icon: Heartbeat,
+    label: "Clinical continuity",
+    text: "Immunizations, growth checks, alerts, allergies and appointments in one longitudinal record.",
+  },
+  {
+    icon: DeviceMobile,
+    label: "Offline operations",
+    text: "A bounded set of field actions can be encrypted locally and synchronized later.",
+  },
+  {
+    icon: LockKey,
+    label: "Scoped access",
+    text: "Role, organization and purpose context shape what each workspace can access.",
+  },
+];
 
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisible(true);
-          obs.disconnect();
-        }
-      },
-      { threshold: 0.1 }
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
+const workflow = [
+  {
+    number: "01",
+    title: "Establish identity",
+    text: "Register or resolve a child record, connect the right caregiver and retain a clear identity history.",
+  },
+  {
+    number: "02",
+    title: "Deliver care",
+    text: "Record clinical activity, schedule follow-up and coordinate authorized programme services.",
+  },
+  {
+    number: "03",
+    title: "Work through disruption",
+    text: "Use connected workflows when available and queue supported field operations when connectivity drops.",
+  },
+  {
+    number: "04",
+    title: "Review and govern",
+    text: "Use role-scoped workspaces, audit evidence and administrative controls to review sensitive actions.",
+  },
+];
 
+const surfaces = [
+  {
+    eyebrow: "Identity and access",
+    title: "One trusted child record across fragmented care journeys.",
+    body: "Medfinet brings child identity, caregiver relationships and organization-scoped access together so teams can work from the same operational record without exposing every detail to every user.",
+    points: [
+      "Child registration and controlled lookup",
+      "Caregiver linking and consent authority",
+      "Identity amendments and identifier verification",
+    ],
+    icon: Fingerprint,
+  },
+  {
+    eyebrow: "Clinical operations",
+    title: "Everyday care workflows, not a decorative dashboard.",
+    body: "Authorized health workers can record immunizations, growth measurements, alerts, allergies and appointments, while schedule evaluation helps surface overdue and upcoming care.",
+    points: [
+      "Longitudinal clinical timeline",
+      "Vaccination schedule evaluation",
+      "Appointments and caregiver responses",
+    ],
+    icon: Heartbeat,
+  },
+  {
+    eyebrow: "Climate response",
+    title: "Turn prioritized worklists into accountable field action.",
+    body: "Response teams can open authorized worklists, record service delivery and create referrals without navigating unrelated clinical records or exposing unnecessary data.",
+    points: [
+      "Authorized programme worklists",
+      "Delivery and referral recording",
+      "Operational follow-up and evidence",
+    ],
+    icon: GlobeHemisphereWest,
+  },
+  {
+    eyebrow: "Low-connectivity work",
+    title: "Support the field without pretending the internet is always available.",
+    body: "The frontend includes encrypted offline queues for a bounded set of operations and dedicated NFC surfaces. Hardware, provider and field performance still require controlled pilot validation.",
+    points: [
+      "Encrypted browser queue",
+      "Idempotent batch submission",
+      "Dedicated NFC scanner and provisioning flows",
+    ],
+    icon: CloudArrowUp,
+  },
+];
+
+const validationItems = [
+  "Physical NFC cards, supported readers and real tap-time performance",
+  "USSD and SMS provider behaviour, delivery rates and production short codes",
+  "Low-bandwidth usability, accessibility and frontline workflow testing",
+  "FHIR or DHIS2 exchange with named partner systems",
+  "Security review, recovery exercises and operational monitoring",
+  "Clinical and language review of configured content",
+];
+
+function ProductCanvas() {
   return (
-    <div
-      ref={ref}
-      className={className}
-      style={{
-        opacity: visible ? 1 : 0,
-        transform: visible ? "translateY(0)" : "translateY(24px)",
-        transition: `opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms, transform 0.6s cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms`,
-      }}
-    >
-      {children}
+    <div className="relative border border-white/15 bg-white text-slate-950 shadow-[0_35px_90px_rgba(2,8,23,0.38)]">
+      <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+            Medfinet operations
+          </p>
+          <p className="mt-1 text-sm font-bold">Child continuity workspace</p>
+        </div>
+        <span className="inline-flex items-center gap-2 border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800">
+          <span className="h-2 w-2 bg-emerald-500" />
+          Connected
+        </span>
+      </div>
+
+      <div className="grid lg:grid-cols-[1.15fr_.85fr]">
+        <section className="border-b border-slate-200 p-5 lg:border-b-0 lg:border-r">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-700">
+                Identity summary
+              </p>
+              <h2 className="mt-2 text-2xl font-extrabold tracking-tight">
+                Protected child record
+              </h2>
+              <p className="mt-2 max-w-md text-sm leading-6 text-slate-600">
+                A single operational view for verified identity, care status and
+                authorized follow-up.
+              </p>
+            </div>
+            <span className="grid h-11 w-11 shrink-0 place-items-center bg-primary-50 text-primary-700">
+              <Fingerprint size={22} />
+            </span>
+          </div>
+
+          <dl className="mt-7 grid grid-cols-2 gap-x-6 gap-y-5 border-y border-slate-200 py-5">
+            <div>
+              <dt className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500">
+                Medfinet ID
+              </dt>
+              <dd className="mt-1 text-sm font-bold">MDF-CH-20491</dd>
+            </div>
+            <div>
+              <dt className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500">
+                Caregiver
+              </dt>
+              <dd className="mt-1 text-sm font-bold">Linked and authorized</dd>
+            </div>
+            <div>
+              <dt className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500">
+                Next care action
+              </dt>
+              <dd className="mt-1 text-sm font-bold">Vaccination follow-up</dd>
+            </div>
+            <div>
+              <dt className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500">
+                Access scope
+              </dt>
+              <dd className="mt-1 text-sm font-bold">Organization controlled</dd>
+            </div>
+          </dl>
+
+          <div className="mt-5">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+                Recent activity
+              </p>
+              <span className="text-xs font-semibold text-slate-500">Today</span>
+            </div>
+            <div className="mt-4 space-y-4">
+              {[
+                ["09:12", "Immunization recorded", "Clinical timeline updated"],
+                ["10:40", "Appointment confirmed", "Caregiver response received"],
+                ["12:05", "Worklist reviewed", "Programme access verified"],
+              ].map(([time, title, note]) => (
+                <div key={title} className="grid grid-cols-[52px_1fr] gap-3">
+                  <span className="pt-0.5 text-xs font-bold text-slate-400">{time}</span>
+                  <div className="border-l-2 border-primary-200 pl-3">
+                    <p className="text-sm font-bold text-slate-900">{title}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">{note}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <aside className="bg-slate-50 p-5">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+            Active surfaces
+          </p>
+          <div className="mt-4 divide-y divide-slate-200 border-y border-slate-200">
+            {[
+              [Heartbeat, "Clinical operations", "Records and follow-up"],
+              [DeviceMobile, "Offline sync", "Queued field work"],
+              [GlobeHemisphereWest, "Response worklists", "Authorized delivery"],
+            ].map(([Icon, title, note]) => {
+              const SurfaceIcon = Icon as typeof Heartbeat;
+              return (
+                <div key={String(title)} className="flex items-center gap-3 py-4">
+                  <span className="grid h-9 w-9 place-items-center bg-white text-primary-700 shadow-sm">
+                    <SurfaceIcon size={18} />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold">{String(title)}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">{String(note)}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-5 bg-slate-950 p-5 text-white">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-300">
+              Access context
+            </p>
+            <p className="mt-2 text-sm font-bold">Health worker · scoped facility</p>
+            <p className="mt-2 text-xs leading-5 text-slate-300">
+              Sensitive operations remain tied to role, organization and purpose.
+            </p>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }
 
-/* ─── Animated Counter ─── */
-function Counter({ value, suffix }: { value: number; suffix: string }) {
-  const [count, setCount] = useState(0);
-  const ref = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(([entry]) => {
-      if (!entry.isIntersecting) return;
-      obs.disconnect();
-      let start: number | null = null;
-      const duration = 1800;
-      const step = (ts: number) => {
-        if (!start) start = ts;
-        const progress = Math.min((ts - start) / duration, 1);
-        const easeOut = 1 - Math.pow(1 - progress, 3);
-        setCount(Math.floor(easeOut * value));
-        if (progress < 1) requestAnimationFrame(step);
-      };
-      requestAnimationFrame(step);
-    }, { threshold: 0.3 });
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [value]);
-
+function SectionHeading({
+  eyebrow,
+  title,
+  description,
+}: {
+  eyebrow: string;
+  title: string;
+  description?: string;
+}) {
   return (
-    <span ref={ref}>
-      {count}
-      {suffix}
-    </span>
+    <div className="max-w-3xl">
+      <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-primary-700">
+        {eyebrow}
+      </p>
+      <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl lg:text-[2.75rem] lg:leading-tight">
+        {title}
+      </h2>
+      {description ? (
+        <p className="mt-5 max-w-2xl text-base leading-7 text-slate-600">
+          {description}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
-/* ─── Interactive Feature Tab Content Data ─── */
-const demoTabs = [
-  {
-    id: "nfc",
-    label: "NFC Tap Identification",
-    icon: Fingerprint,
-    title: "Instant Patient Lookup in Under 2 Seconds",
-    desc: "Clinicians tap an NTAG215 wristband using an attested tablet or phone. MedfiNet cryptographically resolves the child summary without writing sensitive health data to the card.",
-    image: "/images/nfc_clinic_tap.png",
-    badge: "Hardware-Attested",
-    highlights: [
-      "Offline-capable cryptographic card token validation",
-      "Monotonic counter check prevents card clone replay attacks",
-      "Supports PWA WebNFC and native Android/iOS reader modes",
-    ],
-  },
-  {
-    id: "clinical",
-    label: "Longitudinal Child Record",
-    icon: Heartbeat,
-    title: "Complete Care History That Travels Everywhere",
-    desc: "Unified clinical timeline connecting vaccination schedules, WHO growth standards, care alerts, and telehealth consultations under one verified child identity.",
-    image: "/images/dashboard_preview.png",
-    badge: "FHIR R4 & DHIS2 Sync",
-    highlights: [
-      "Automated vaccine schedule engine for national immunization rules",
-      "Consent-scoped disclosure filtering for every access level",
-      "Complete immutable audit trail for every clinical amendment",
-    ],
-  },
-  {
-    id: "ussd",
-    label: "Offline & USSD Connectivity",
-    icon: DeviceMobile,
-    title: "100% Reachable on Any 2G Feature Phone",
-    desc: "Health workers and caregivers query records, confirm appointments, and authorize consent over USSD menus (*384*44#)—no smartphone or mobile data needed.",
-    image: "/images/ussd_field_worker.png",
-    badge: "Africa's Talking Gateway",
-    highlights: [
-      "OTP-authenticated sessions with role-based command restrictions",
-      "Async queue worker reconciles USSD field entries upon sync",
-      "Automatic SMS appointment & immunization reminders",
-    ],
-  },
-];
-
-/* ─── FAQ Accordion Data ─── */
-const faqs = [
-  {
-    q: "How does MedfiNet handle offline work in remote field clinics?",
-    a: "Field devices maintain an encrypted local store. Clinicians can perform NFC wristband lookups and log immunizations offline. When connectivity is restored, the sync manager submits signed batch payloads to the backend API.",
-  },
-  {
-    q: "Is sensitive patient data exposed on the Algorand blockchain?",
-    a: "No. MedfiNet never stores personally identifiable information (PII) or clinical notes on-chain. Only SHA-256 cryptographic digests of immunization certificates and reward settlement transactions are anchored to Algorand.",
-  },
-  {
-    q: "How is patient consent governed across different facilities?",
-    a: "Caregivers maintain granular consent controls per data category (Immunizations, Demographics, Clinical Alerts) and access level (Read/Write). Every API request passes through our consent evaluation middleware before returning data.",
-  },
-  {
-    q: "Can MedfiNet integrate with existing hospital EMRs and DHIS2?",
-    a: "Yes. MedfiNet includes native FHIR R4 export mappers and DHIS2 interoperability adapters to exchange immunization and demographic data with national health registries seamlessly.",
-  },
-];
-
 export default function LandingPage() {
-  const [activeTab, setActiveTab] = useState(0);
-  const [openFaq, setOpenFaq] = useState<number | null>(0);
-  const [simulatedNfcStatus, setSimulatedNfcStatus] = useState<"idle" | "scanning" | "success">("idle");
-
-  const triggerSimulatedTap = () => {
-    setSimulatedNfcStatus("scanning");
-    setTimeout(() => {
-      setSimulatedNfcStatus("success");
-      setTimeout(() => setSimulatedNfcStatus("idle"), 4000);
-    }, 1200);
-  };
-
   return (
-    <main className="min-h-screen bg-[#FAFBFD] font-sans text-slate-900 antialiased selection:bg-primary-500 selection:text-white">
-      {/* ──────────────────────────────────────
-          1. HEADER / NAVBAR
-      ────────────────────────────────────── */}
-      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6 lg:px-8">
+    <main className="min-h-screen bg-white text-slate-950">
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-6 lg:px-8">
           <Link to="/" className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-600 text-white shadow-md shadow-primary-600/20">
-              <ShieldCheck size={22} weight="bold" />
-            </div>
-            <div>
-              <span className="text-base font-extrabold tracking-tight text-slate-950">MedfiNet</span>
-              <span className="ml-2 rounded bg-primary-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary-700">
-                v2.4 Enterprise
+            <span className="grid h-9 w-9 place-items-center bg-primary-700 text-white">
+              <ShieldCheck size={21} weight="fill" />
+            </span>
+            <span>
+              <span className="block text-base font-extrabold tracking-tight">Medfinet</span>
+              <span className="block text-[9px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                Child health infrastructure
               </span>
-            </div>
+            </span>
           </Link>
 
-          <nav className="hidden items-center gap-8 md:flex">
-            <a href="#features" className="text-xs font-bold uppercase tracking-wider text-slate-600 transition hover:text-primary-700">
+          <nav className="hidden items-center gap-8 md:flex" aria-label="Main navigation">
+            <a className="text-sm font-semibold text-slate-600 hover:text-slate-950" href="#capabilities">
               Capabilities
             </a>
-            <a href="#how-it-works" className="text-xs font-bold uppercase tracking-wider text-slate-600 transition hover:text-primary-700">
+            <a className="text-sm font-semibold text-slate-600 hover:text-slate-950" href="#workflow">
               Workflow
             </a>
-            <a href="#architecture" className="text-xs font-bold uppercase tracking-wider text-slate-600 transition hover:text-primary-700">
-              Architecture
-            </a>
-            <a href="#faq" className="text-xs font-bold uppercase tracking-wider text-slate-600 transition hover:text-primary-700">
-              FAQ
+            <a className="text-sm font-semibold text-slate-600 hover:text-slate-950" href="#governance">
+              Governance
             </a>
           </nav>
 
-          <div className="flex items-center gap-3">
-            <Link
-              to="/login"
-              className="px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 transition hover:text-slate-950"
-            >
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Link to="/login" className="px-2 py-2 text-sm font-bold text-slate-700 hover:text-slate-950 sm:px-3">
               Sign in
             </Link>
             <Link
               to="/register"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-sm shadow-primary-600/30 transition hover:bg-primary-700 hover:shadow-md"
+              className="inline-flex items-center gap-2 bg-primary-700 px-3 py-2.5 text-sm font-bold text-white transition hover:bg-primary-800 sm:px-4"
             >
-              Get started <ArrowRight size={14} weight="bold" />
+              <span className="hidden sm:inline">Request access</span>
+              <span className="sm:hidden">Access</span>
+              <ArrowRight size={16} weight="bold" />
             </Link>
           </div>
         </div>
       </header>
 
-      {/* ──────────────────────────────────────
-          2. HERO SECTION
-      ────────────────────────────────────── */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-slate-50 via-white to-slate-50/50 pb-20 pt-16 lg:pb-28 lg:pt-24">
-        {/* Subtle decorative grid background */}
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage: "radial-gradient(#0f172a 1px, transparent 1px)",
-            backgroundSize: "32px 32px",
-          }}
-        />
+      <section className="relative overflow-hidden border-b border-slate-800 bg-slate-950 text-white">
+        <div className="pointer-events-none absolute inset-0 opacity-[0.08] [background-image:linear-gradient(rgba(255,255,255,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.12)_1px,transparent_1px)] [background-size:44px_44px]" />
+        <div className="pointer-events-none absolute -right-20 top-0 h-[520px] w-[520px] bg-[radial-gradient(circle,rgba(14,165,233,.22),transparent_68%)]" />
 
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="grid gap-12 lg:grid-cols-12 lg:items-center">
-            {/* Hero Left Content */}
-            <div className="lg:col-span-6">
-              <Reveal>
-                <div className="inline-flex items-center gap-2 rounded-full border border-primary-200 bg-primary-50/80 px-3.5 py-1.5 text-xs font-bold text-primary-800 backdrop-blur-sm">
-                  <Sparkle size={15} className="text-primary-600" weight="fill" />
-                  <span>Blockchain-Anchored Child Health Platform</span>
-                </div>
-              </Reveal>
-
-              <Reveal delay={100}>
-                <h1 className="mt-6 text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl lg:text-[3.25rem] lg:leading-[1.12]">
-                  Care continuity for every child. <span className="text-primary-600">In any environment.</span>
-                </h1>
-              </Reveal>
-
-              <Reveal delay={200}>
-                <p className="mt-6 text-base leading-relaxed text-slate-600 sm:text-lg">
-                  MedfiNet bridges clinics, field workers, and caregivers into one unified operational network. Governed by patient consent, powered by NFC wristbands, USSD feature phones, and Algorand smart contracts.
-                </p>
-              </Reveal>
-
-              <Reveal delay={300}>
-                <div className="mt-8 flex flex-wrap items-center gap-4">
-                  <Link
-                    to="/register"
-                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-slate-950 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-slate-950/15 transition hover:bg-slate-800"
-                  >
-                    Open verified workspace <ArrowRight size={16} />
-                  </Link>
-                  <a
-                    href="#demo"
-                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-6 py-3 text-sm font-bold text-slate-800 shadow-sm transition hover:border-slate-400 hover:bg-slate-50"
-                  >
-                    Explore live capabilities
-                  </a>
-                </div>
-              </Reveal>
-
-              {/* Trust Indicator Pills */}
-              <Reveal delay={400}>
-                <div className="mt-10 flex flex-wrap items-center gap-6 border-t border-slate-200/80 pt-6 text-xs font-bold text-slate-500">
-                  <span className="flex items-center gap-1.5">
-                    <CheckCircle size={16} className="text-emerald-600" weight="fill" /> 100% Role & Scope Bounded
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <CheckCircle size={16} className="text-emerald-600" weight="fill" /> Zero Data Leakage NFC
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <CheckCircle size={16} className="text-emerald-600" weight="fill" /> Offline-First Architecture
-                  </span>
-                </div>
-              </Reveal>
+        <div className="relative mx-auto grid max-w-7xl gap-14 px-5 py-16 sm:px-6 lg:grid-cols-[.95fr_1.05fr] lg:items-center lg:px-8 lg:py-24">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 border border-cyan-300/25 bg-cyan-300/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-cyan-200">
+              <span className="h-1.5 w-1.5 bg-cyan-300" />
+              Pre-production platform · pilot validation next
             </div>
 
-            {/* Hero Right Visual Mockup Showcase */}
-            <div className="lg:col-span-6">
-              <Reveal delay={200}>
-                <div className="relative mx-auto max-w-lg lg:max-w-none">
-                  {/* Outer Frame */}
-                  <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-2 shadow-2xl shadow-slate-900/10">
-                    <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-2.5">
-                      <div className="flex items-center gap-2">
-                        <span className="h-3 w-3 rounded-full bg-rose-400" />
-                        <span className="h-3 w-3 rounded-full bg-amber-400" />
-                        <span className="h-3 w-3 rounded-full bg-emerald-400" />
-                        <span className="ml-2 font-mono text-[11px] font-medium text-slate-400">app.medfinet.org/children/CH-8924</span>
-                      </div>
-                      <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-                        Live System
-                      </span>
-                    </div>
+            <h1 className="mt-6 text-4xl font-extrabold tracking-[-0.04em] sm:text-5xl lg:text-[4.2rem] lg:leading-[1.02]">
+              Care continuity for every child,
+              <span className="block text-cyan-300">even through disruption.</span>
+            </h1>
+            <p className="mt-6 max-w-xl text-base leading-8 text-slate-300 sm:text-lg">
+              Medfinet connects verified child identity, clinical operations,
+              offline field work and accountable access in one secure platform
+              designed for fragmented and low-connectivity care environments.
+            </p>
 
-                    <div className="relative aspect-[16/10] overflow-hidden rounded-lg bg-slate-900">
-                      <img
-                        src="/images/dashboard_preview.png"
-                        alt="MedfiNet Platform Interface"
-                        className="h-full w-full object-cover object-top"
-                      />
-
-                      {/* Interactive Floating Badge 1: Simulated Live NFC Scanner */}
-                      <div className="absolute left-4 top-4 rounded-xl border border-white/20 bg-slate-950/85 p-3.5 text-white shadow-xl backdrop-blur-md">
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="flex items-center gap-2.5">
-                            <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${simulatedNfcStatus === "success" ? "bg-emerald-500 text-white" : "bg-primary-600 text-white"}`}>
-                              <Fingerprint size={18} className={simulatedNfcStatus === "scanning" ? "animate-pulse" : ""} />
-                            </div>
-                            <div>
-                              <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-300">NFC Reader</p>
-                              <p className="text-xs font-bold text-white">
-                                {simulatedNfcStatus === "idle" && "Ready to tap"}
-                                {simulatedNfcStatus === "scanning" && "Validating token..."}
-                                {simulatedNfcStatus === "success" && "Amina Bello (Verified)"}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            onClick={triggerSimulatedTap}
-                            disabled={simulatedNfcStatus !== "idle"}
-                            className="rounded-md bg-white/10 px-2.5 py-1 text-[11px] font-bold text-white transition hover:bg-white/20 disabled:opacity-50"
-                          >
-                            {simulatedNfcStatus === "idle" ? "Simulate Tap" : "Processing"}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Floating Badge 2: On-Chain Anchor Receipt */}
-                      <div className="absolute bottom-4 right-4 rounded-xl border border-slate-200 bg-white/95 p-3 text-slate-900 shadow-xl backdrop-blur-md">
-                        <div className="flex items-center gap-2.5">
-                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-100 text-primary-700">
-                            <ShieldCheck size={16} weight="bold" />
-                          </div>
-                          <div>
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Algorand Anchor</p>
-                            <p className="font-mono text-[11px] font-semibold text-slate-700">Tx: #9F82A4...Confirmed</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </Reveal>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link
+                to="/register"
+                className="inline-flex items-center gap-2 bg-cyan-300 px-5 py-3 text-sm font-extrabold text-slate-950 transition hover:bg-cyan-200"
+              >
+                Request pilot access
+                <ArrowRight size={17} weight="bold" />
+              </Link>
+              <Link
+                to="/login"
+                className="inline-flex items-center gap-2 border border-white/25 px-5 py-3 text-sm font-bold text-white transition hover:border-white/50 hover:bg-white/5"
+              >
+                Open secure workspace
+              </Link>
             </div>
+
+            <div className="mt-9 grid gap-4 border-t border-white/15 pt-6 sm:grid-cols-3">
+              {[
+                "Backend-connected workflows",
+                "Encrypted offline queue",
+                "Role-scoped workspaces",
+              ].map((item) => (
+                <div key={item} className="flex gap-3">
+                  <CheckCircle size={18} className="mt-0.5 shrink-0 text-cyan-300" weight="fill" />
+                  <p className="text-sm leading-5 text-slate-300">{item}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <ProductCanvas />
+        </div>
+      </section>
+
+      <section className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
+          <div className="grid divide-y divide-slate-200 border-x border-slate-200 md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-4">
+            {pillars.map(({ icon: Icon, label, text }) => (
+              <article key={label} className="p-6 lg:p-7">
+                <Icon size={22} className="text-primary-700" />
+                <h2 className="mt-5 text-lg font-extrabold tracking-tight">{label}</h2>
+                <p className="mt-3 text-sm leading-6 text-slate-600">{text}</p>
+              </article>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* ──────────────────────────────────────
-          3. INTERACTIVE FEATURE DEMO TOUR
-      ────────────────────────────────────── */}
-      <section id="demo" className="py-20 lg:py-28">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <Reveal>
-            <div className="mx-auto max-w-3xl text-center">
-              <span className="text-xs font-bold uppercase tracking-widest text-primary-700">Platform Features</span>
-              <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
-                Engineered for complex real-world workflows
-              </h2>
-              <p className="mt-4 text-base text-slate-600">
-                Explore how MedfiNet powers digital child health operations across different operational channels.
-              </p>
-            </div>
-          </Reveal>
+      <section id="workflow" className="border-b border-slate-200 bg-slate-50">
+        <div className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8 lg:py-20">
+          <SectionHeading
+            eyebrow="Operational workflow"
+            title="A clear path from identity to accountable service delivery."
+            description="The product story follows the way care teams actually work: identify the child, deliver care, continue through connectivity disruption and preserve a reviewable history."
+          />
 
-          {/* Interactive Feature Tabs */}
-          <div className="mt-12">
-            <div className="flex justify-center border-b border-slate-200 overflow-x-auto">
-              <div className="flex gap-2 pb-px">
-                {demoTabs.map((tab, idx) => {
-                  const Icon = tab.icon;
-                  const isActive = activeTab === idx;
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(idx)}
-                      className={`flex items-center gap-2 border-b-2 px-5 py-3 text-xs font-bold uppercase tracking-wider transition ${isActive
-                          ? "border-primary-600 text-primary-700 bg-primary-50/50"
-                          : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800"
-                        }`}
-                    >
-                      <Icon size={18} />
-                      <span>{tab.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+          <div className="mt-12 grid border-y border-slate-300 lg:grid-cols-4 lg:divide-x lg:divide-slate-300">
+            {workflow.map((item) => (
+              <article key={item.number} className="border-b border-slate-300 py-7 last:border-b-0 lg:border-b-0 lg:px-6 lg:first:pl-0 lg:last:pr-0">
+                <p className="text-sm font-black tracking-[0.2em] text-primary-700">{item.number}</p>
+                <h3 className="mt-4 text-xl font-extrabold tracking-tight">{item.title}</h3>
+                <p className="mt-3 text-sm leading-6 text-slate-600">{item.text}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
 
-            {/* Active Tab Content Panel */}
-            <div className="mt-8 rounded-2xl border border-slate-200/90 bg-white p-6 shadow-xl lg:p-10">
-              <div className="grid gap-10 lg:grid-cols-12 lg:items-center">
-                <div className="lg:col-span-5">
-                  <span className="inline-block rounded-md bg-primary-100 px-2.5 py-1 text-xs font-bold text-primary-800">
-                    {demoTabs[activeTab].badge}
-                  </span>
-                  <h3 className="mt-4 text-2xl font-extrabold text-slate-950">
-                    {demoTabs[activeTab].title}
-                  </h3>
-                  <p className="mt-3 text-sm leading-relaxed text-slate-600">
-                    {demoTabs[activeTab].desc}
-                  </p>
+      <section id="capabilities" className="bg-white">
+        <div className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8 lg:py-24">
+          <SectionHeading
+            eyebrow="Core surfaces"
+            title="Designed around real operations, not a wall of feature cards."
+            description="Each major area is presented as a focused workflow with clear responsibilities, evidence boundaries and a direct relationship to the backend implementation."
+          />
 
-                  <ul className="mt-6 space-y-3">
-                    {demoTabs[activeTab].highlights.map((h, i) => (
-                      <li key={i} className="flex items-start gap-2.5 text-xs font-semibold text-slate-700">
-                        <Check size={16} className="mt-0.5 shrink-0 text-primary-600" weight="bold" />
-                        <span>{h}</span>
+          <div className="mt-14 divide-y divide-slate-200 border-y border-slate-200">
+            {surfaces.map(({ eyebrow, title, body, points, icon: Icon }, index) => (
+              <article key={title} className="grid gap-10 py-12 lg:grid-cols-[.9fr_1.1fr] lg:items-center lg:gap-16">
+                <div className={index % 2 === 1 ? "lg:order-2" : ""}>
+                  <div className="flex items-center gap-3">
+                    <span className="grid h-10 w-10 place-items-center bg-primary-50 text-primary-700">
+                      <Icon size={21} />
+                    </span>
+                    <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-primary-700">{eyebrow}</p>
+                  </div>
+                  <h3 className="mt-5 text-3xl font-extrabold tracking-tight text-slate-950">{title}</h3>
+                  <p className="mt-5 text-base leading-7 text-slate-600">{body}</p>
+                  <ul className="mt-7 space-y-3">
+                    {points.map((point) => (
+                      <li key={point} className="flex items-start gap-3 text-sm font-semibold text-slate-700">
+                        <CaretRight size={16} className="mt-0.5 shrink-0 text-primary-700" weight="bold" />
+                        {point}
                       </li>
                     ))}
                   </ul>
-
-                  <div className="mt-8">
-                    <Link
-                      to="/register"
-                      className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary-700 transition hover:text-primary-800"
-                    >
-                      Try this workflow <ArrowRight size={14} />
-                    </Link>
-                  </div>
                 </div>
 
-                <div className="lg:col-span-7">
-                  <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-900 shadow-md">
-                    <img
-                      src={demoTabs[activeTab].image}
-                      alt={demoTabs[activeTab].title}
-                      className="h-80 w-full object-cover object-center lg:h-96"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ──────────────────────────────────────
-          5. SYSTEM ARCHITECTURE & INTEGRATION STRIP
-      ────────────────────────────────────── */}
-      <section id="architecture" className="border-y border-slate-200 bg-slate-900 py-20 text-white lg:py-28">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <Reveal>
-            <div className="mx-auto max-w-3xl text-center">
-              <span className="text-xs font-bold uppercase tracking-widest text-primary-400">High-Assurance Architecture</span>
-              <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
-                Built on verifiable software standards
-              </h2>
-              <p className="mt-4 text-sm text-slate-400">
-                End-to-end security, Maker-Checker authorization, and explicit consent enforcement at every API layer.
-              </p>
-            </div>
-          </Reveal>
-
-          <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-6 shadow-sm">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-900/50 text-primary-400">
-                <LockKey size={22} />
-              </div>
-              <h4 className="mt-4 text-base font-bold text-white">Identity & Access</h4>
-              <p className="mt-2 text-xs leading-relaxed text-slate-400">
-                Supabase JWT authentication with legacy fallback, organization-scoped RBAC, and step-up auth for sensitive admin operations.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-6 shadow-sm">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-900/50 text-primary-400">
-                <TreeStructure size={22} />
-              </div>
-              <h4 className="mt-4 text-base font-bold text-white">Consent Engine</h4>
-              <p className="mt-2 text-xs leading-relaxed text-slate-400">
-                Data category & access level scoping. Evaluate disclosure before serving any child record to health workers or partners.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-6 shadow-sm">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-900/50 text-primary-400">
-                <CirclesThreePlus size={22} />
-              </div>
-              <h4 className="mt-4 text-base font-bold text-white">Algorand Anchoring</h4>
-              <p className="mt-2 text-xs leading-relaxed text-slate-400">
-                Outbox pattern asynchronously posts certificate SHA-256 digests and settles reward token transfers on-chain via TEAL contracts.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-6 shadow-sm">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-900/50 text-primary-400">
-                <GlobeHemisphereWest size={22} />
-              </div>
-              <h4 className="mt-4 text-base font-bold text-white">FHIR R4 & DHIS2</h4>
-              <p className="mt-2 text-xs leading-relaxed text-slate-400">
-                Native interoperability adapters convert local clinical records to international standards for national health reporting.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ──────────────────────────────────────
-          6. FIELD TESTIMONIALS
-      ────────────────────────────────────── */}
-      <section className="py-20 lg:py-28">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <Reveal>
-            <div className="mx-auto max-w-2xl text-center">
-              <span className="text-xs font-bold uppercase tracking-widest text-primary-700">Field Operational Impact</span>
-              <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-950">
-                Proven in high-demand environments
-              </h2>
-            </div>
-          </Reveal>
-
-          <div className="mt-14 grid gap-8 md:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm">
-              <Quotes size={32} className="text-primary-300" weight="fill" />
-              <p className="mt-3 text-sm leading-relaxed text-slate-700">
-                "The NFC tap-to-identify workflow cut our registration bottleneck at mass vaccination sites from six minutes to under thirty seconds per child."
-              </p>
-              <div className="mt-6 border-t border-slate-100 pt-4">
-                <p className="text-xs font-extrabold text-slate-950">Field Immunization Lead</p>
-                <p className="text-[11px] font-semibold text-slate-500">Kano State Public Health Campaign</p>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm">
-              <Quotes size={32} className="text-primary-300" weight="fill" />
-              <p className="mt-3 text-sm leading-relaxed text-slate-700">
-                "Being able to run USSD-based consent requests for families in areas with zero mobile data coverage was a prerequisite no other platform could meet."
-              </p>
-              <div className="mt-6 border-t border-slate-100 pt-4">
-                <p className="text-xs font-extrabold text-slate-950">Programme Director</p>
-                <p className="text-[11px] font-semibold text-slate-500">Sahel Health Resilience Initiative</p>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm">
-              <Quotes size={32} className="text-primary-300" weight="fill" />
-              <p className="mt-3 text-sm leading-relaxed text-slate-700">
-                "MedfiNet's consent and disclosure model is the most rigorous I've seen—every category, every access level, purpose-bound and fully audited."
-              </p>
-              <div className="mt-6 border-t border-slate-100 pt-4">
-                <p className="text-xs font-extrabold text-slate-950">Digital Health Advisor</p>
-                <p className="text-[11px] font-semibold text-slate-500">UNICEF West Africa Region</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ──────────────────────────────────────
-          7. FAQ ACCORDION
-      ────────────────────────────────────── */}
-      <section id="faq" className="border-t border-slate-200/80 bg-slate-50/50 py-20 lg:py-28">
-        <div className="mx-auto max-w-4xl px-6 lg:px-8">
-          <Reveal>
-            <div className="text-center">
-              <span className="text-xs font-bold uppercase tracking-widest text-primary-700">Questions & Answers</span>
-              <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-950">
-                Frequently Asked Questions
-              </h2>
-            </div>
-          </Reveal>
-
-          <div className="mt-12 space-y-4">
-            {faqs.map((faq, idx) => {
-              const isOpen = openFaq === idx;
-              return (
-                <div key={idx} className="rounded-xl border border-slate-200 bg-white shadow-sm transition">
-                  <button
-                    onClick={() => setOpenFaq(isOpen ? null : idx)}
-                    className="flex w-full items-center justify-between p-5 text-left text-sm font-bold text-slate-900"
-                  >
-                    <span>{faq.q}</span>
-                    <CaretDown
-                      size={18}
-                      className={`shrink-0 text-slate-500 transition-transform ${isOpen ? "rotate-180 text-primary-600" : ""}`}
-                    />
-                  </button>
-                  {isOpen && (
-                    <div className="border-t border-slate-100 px-5 pb-5 pt-3 text-xs leading-relaxed text-slate-600">
-                      {faq.a}
+                <div className={index % 2 === 1 ? "lg:order-1" : ""}>
+                  <div className="border border-slate-200 bg-slate-50 p-5 sm:p-7">
+                    <div className="border border-slate-200 bg-white">
+                      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Workspace preview</p>
+                          <p className="mt-1 text-sm font-extrabold">{eyebrow}</p>
+                        </div>
+                        <span className="text-xs font-bold text-primary-700">Active</span>
+                      </div>
+                      <div className="grid gap-px bg-slate-200 sm:grid-cols-3">
+                        {points.map((point, pointIndex) => (
+                          <div key={point} className="bg-white p-5">
+                            <p className="text-xs font-black text-slate-400">0{pointIndex + 1}</p>
+                            <p className="mt-3 text-sm font-bold leading-5 text-slate-900">{point}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-5 py-4 text-xs text-slate-500">
+                        <span>Organization-scoped access</span>
+                        <span className="font-bold text-slate-700">Audit-aware workflow</span>
+                      </div>
                     </div>
-                  )}
+                  </div>
                 </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="governance" className="border-y border-slate-800 bg-slate-950 text-white">
+        <div className="mx-auto grid max-w-7xl gap-12 px-5 py-16 sm:px-6 lg:grid-cols-[.85fr_1.15fr] lg:px-8 lg:py-20">
+          <div>
+            <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-cyan-300">Governance and trust</p>
+            <h2 className="mt-4 text-3xl font-extrabold tracking-tight sm:text-4xl">
+              Health software must be useful,
+              <span className="block text-slate-400">and it must be accountable.</span>
+            </h2>
+            <p className="mt-5 max-w-xl text-base leading-7 text-slate-300">
+              Medfinet is presented as a substantial pre-production implementation,
+              not a finished national deployment. The interface communicates what
+              works today while keeping validation boundaries visible.
+            </p>
+          </div>
+
+          <div className="grid border border-white/15 sm:grid-cols-2">
+            {[
+              [LockKey, "Consent-aware access", "Sensitive work is shaped by role, organization and purpose context."],
+              [ShieldCheck, "Operational auditability", "Key administrative and clinical actions remain reviewable."],
+              [DeviceMobile, "Offline queue integrity", "Supported operations are encrypted locally and submitted as bounded batches."],
+              [Buildings, "Multi-role workspaces", "Caregivers, workers, administrators, merchants and auditors receive distinct routes."],
+            ].map(([Icon, title, text], index) => {
+              const GovernanceIcon = Icon as typeof LockKey;
+              return (
+                <article
+                  key={String(title)}
+                  className={`p-6 ${index % 2 === 0 ? "sm:border-r sm:border-white/15" : ""} ${index < 2 ? "border-b border-white/15" : ""}`}
+                >
+                  <GovernanceIcon size={22} className="text-cyan-300" />
+                  <h3 className="mt-5 text-lg font-extrabold">{String(title)}</h3>
+                  <p className="mt-3 text-sm leading-6 text-slate-300">{String(text)}</p>
+                </article>
               );
             })}
           </div>
         </div>
       </section>
 
-      {/* ──────────────────────────────────────
-          8. CALL TO ACTION & FOOTER
-      ────────────────────────────────────── */}
-      <section className="bg-slate-950 py-20 text-white">
-        <div className="mx-auto max-w-7xl px-6 text-center lg:px-8">
-          <Reveal>
-            <div className="mx-auto max-w-2xl">
-              <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
-                Ready to deploy MedfiNet in your organization?
-              </h2>
-              <p className="mt-4 text-sm text-slate-400">
-                Create a verified organization workspace to configure facilities, health worker accounts, and consent policies.
-              </p>
-              <div className="mt-8 flex justify-center gap-4">
-                <Link
-                  to="/register"
-                  className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-white shadow-lg shadow-primary-600/30 transition hover:bg-primary-500"
-                >
-                  Create Organization Workspace <ArrowRight size={16} />
-                </Link>
-                <Link
-                  to="/login"
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-300 transition hover:bg-slate-800 hover:text-white"
-                >
-                  Sign In
-                </Link>
-              </div>
-            </div>
-          </Reveal>
+      <section id="status" className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8 lg:py-20">
+          <div className="grid gap-12 lg:grid-cols-[.8fr_1.2fr]">
+            <SectionHeading
+              eyebrow="Validation roadmap"
+              title="What still has to be proven in the real world."
+              description="Implementation is not the same as deployment readiness. These areas remain part of controlled pilot, security and partner validation."
+            />
 
-          <footer className="mt-20 border-t border-slate-900 pt-8 text-center text-xs font-semibold text-slate-500">
-            <p>© {new Date().getFullYear()} MedfiNet Platform. All rights reserved. Clinical access is role-, scope-, purpose- and consent-controlled.</p>
-          </footer>
+            <div className="divide-y divide-slate-200 border-y border-slate-200">
+              {validationItems.map((item, index) => (
+                <div key={item} className="grid grid-cols-[42px_1fr] gap-4 py-4">
+                  <span className="text-xs font-black tracking-[0.12em] text-amber-600">0{index + 1}</span>
+                  <p className="text-sm font-semibold leading-6 text-slate-700">{item}</p>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
+
+      <section className="bg-slate-50">
+        <div className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8">
+          <div className="grid gap-8 border border-slate-300 bg-white p-7 sm:p-9 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div>
+              <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-primary-700">Next step</p>
+              <h2 className="mt-3 text-3xl font-extrabold tracking-tight">Explore the platform through a controlled workspace.</h2>
+              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
+                Open an account to review the implementation or continue into an
+                existing organization workspace.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                to="/register"
+                className="inline-flex items-center gap-2 bg-primary-700 px-5 py-3 text-sm font-extrabold text-white transition hover:bg-primary-800"
+              >
+                Request access
+                <ArrowRight size={17} weight="bold" />
+              </Link>
+              <Link
+                to="/login"
+                className="inline-flex items-center border border-slate-300 px-5 py-3 text-sm font-extrabold text-slate-900 transition hover:bg-slate-50"
+              >
+                Sign in securely
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <footer className="border-t border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-8 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+          <p className="font-bold text-slate-700">Medfinet · child health infrastructure</p>
+          <p>Version 0.1.0 · pre-production implementation</p>
+        </div>
+      </footer>
     </main>
   );
 }
