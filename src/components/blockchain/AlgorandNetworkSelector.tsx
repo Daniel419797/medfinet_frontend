@@ -51,12 +51,17 @@ export default function AlgorandNetworkSelector() {
         </button>
         <button
           type="button"
-          disabled={loading || switching || !available.has("mainnet")}
+          disabled={
+            loading ||
+            switching ||
+            selectedNetwork === "mainnet" ||
+            !available.has("mainnet")
+          }
           onClick={() => setConfirmMainnet(true)}
-          className={`inline-flex min-h-9 items-center gap-2 px-3 text-xs font-extrabold transition disabled:cursor-not-allowed disabled:opacity-40 ${
+          className={`inline-flex min-h-9 items-center gap-2 px-3 text-xs font-extrabold transition disabled:cursor-not-allowed ${
             selectedNetwork === "mainnet"
               ? "bg-amber-500 text-slate-950"
-              : "text-slate-600 hover:bg-amber-50 hover:text-amber-900"
+              : "text-slate-600 hover:bg-amber-50 hover:text-amber-900 disabled:opacity-40"
           }`}
           aria-pressed={selectedNetwork === "mainnet"}
         >
@@ -86,7 +91,7 @@ export default function AlgorandNetworkSelector() {
             onClick={() => setConfirmMainnet(false)}
             className="border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
           >
-            Stay on TestNet
+            Cancel
           </button>
           <button
             type="button"
