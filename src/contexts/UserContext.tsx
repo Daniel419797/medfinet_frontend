@@ -156,6 +156,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     setOrganizationIdState(null);
   };
 
+  const content =
+    user && organizationId ? (
+      <BlockchainProvider>{children}</BlockchainProvider>
+    ) : (
+      children
+    );
+
   return (
     <UserContext.Provider
       value={{
@@ -170,7 +177,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         refreshSession,
       }}
     >
-      <BlockchainProvider>{children}</BlockchainProvider>
+      {content}
     </UserContext.Provider>
   );
 };

@@ -6,6 +6,7 @@
     "types": ["vite/client"]
   },
   "files": [
+    "src/main.tsx",
     "src/pages/landing/LandingPage.tsx",
     "src/pages/offline/OfflineSync.tsx",
     "src/components/auth/AuthenticatedRoute.tsx",
