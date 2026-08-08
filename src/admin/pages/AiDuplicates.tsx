@@ -82,7 +82,7 @@ export default function AiDuplicates() {
         </div>
       </PageFeedback>
 
-      {results && (
+      {results !== null && (
         <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-900">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
             <AlertTriangle className="h-4 w-4" />
