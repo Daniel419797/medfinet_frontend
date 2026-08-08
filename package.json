@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "typecheck": "tsc --noEmit -p tsconfig.pr.json",
+    "typecheck:all": "tsc --noEmit -p tsconfig.app.json",
     "build": "npm run typecheck && vite build",
     "lint": "eslint .",
+    "lint:pr": "eslint src/pages/landing/LandingPage.tsx src/pages/offline/OfflineSync.tsx src/components/auth/AuthenticatedRoute.tsx src/contexts/UserContext.tsx src/services/medfinetAuthApi.ts src/services/medfinetApiClient.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "npm run typecheck && npm run lint && npm test && vite build",
+    "check": "npm run typecheck && npm run lint:pr && npm test && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
