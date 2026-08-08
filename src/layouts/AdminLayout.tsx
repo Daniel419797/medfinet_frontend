@@ -28,10 +28,13 @@ import { useContext, useMemo } from "react";
 import { Outlet } from "react-router-dom";
 import { AppShell, type ShellNavigationGroup } from "../components/shell/AppShell";
 import WalletStatusButton from "../components/wallet/WalletStatusButton";
-import { useBlockchain } from "../contexts/BlockchainContext";
+import {
+  BlockchainProvider,
+  useBlockchain,
+} from "../contexts/BlockchainContext";
 import UserContext from "../contexts/UserContext";
 
-export default function AdminLayout() {
+function AdminWorkspace() {
   const { user } = useContext(UserContext);
   const { health, featureEnabled } = useBlockchain();
   const anchorsEnabled = featureEnabled("anchors");
@@ -136,5 +139,13 @@ export default function AdminLayout() {
       )}
       <Outlet />
     </AppShell>
+  );
+}
+
+export default function AdminLayout() {
+  return (
+    <BlockchainProvider>
+      <AdminWorkspace />
+    </BlockchainProvider>
   );
 }
