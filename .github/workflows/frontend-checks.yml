@@ -26,4 +26,16 @@ jobs:
         run: npm ci
 
       - name: Run frontend checks
-        run: npm run check
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run check 2>&1 | tee frontend-check.log
+
+      - name: Upload frontend check log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-check-log
+          path: frontend-check.log
+          if-no-files-found: warn
+          retention-days: 7
