@@ -1,160 +1,101 @@
-# MedfiNet Frontend
+# Medfinet Frontend
 
-**Track:** Health × Blockchain × Climate  
-**Stack:** React 18 · Vite · TypeScript · TailwindCSS · Supabase · Algorand
+Medfinet is a pre-production child-health continuity platform. This repository contains the browser interfaces for caregivers, health workers, administrators, merchants and auditors.
 
-MedfiNet is a consent-governed digital child identity and continuity-of-care platform for health, nutrition, and climate-emergency settings. This repository is the consumer and clinician web interface — it communicates with the MedfiNet backend API and the Supabase auth layer.
+The frontend communicates with the Medfinet backend API and uses Supabase for authentication. PostgreSQL behind the backend remains the system of record; the browser is not treated as an authoritative clinical database.
 
----
+## Current implementation
 
-## Vision & Impact
+The active application includes:
 
-MedfiNet puts a child's full health history — vaccinations, nutrition intake, emergency care — into a portable, tamper-proof digital record that works across facilities, connectivity levels, and climate-disrupted geographies.
+- Supabase email/password authentication and password recovery
+- organization-aware, role-scoped navigation
+- child identity registration and lookup
+- immunization, growth, alert, allergy and appointment workflows
+- caregiver dashboards, notifications, rewards and privacy requests
+- climate-response worklists, deliveries and referrals
+- NFC credential provisioning, public tap validation and authenticated scanner flows
+- encrypted browser queues for a bounded set of offline operations
+- administration for memberships, facilities, programmes, governance, localization, integrations, devices and audit evidence
 
-- Clinicians scan NFC cards or QR codes to instantly access verified immunization records.
-- Parents hold revocable consent tokens that govern exactly who can read their child's data.
-- Health workers receive climate-response worklists that surface highest-risk children during emergencies.
-- Offline-first synchronization keeps the app functional on 2G or intermittent connections.
+Implementation in this repository does not by itself establish clinical approval, production readiness, hardware compatibility or live-provider availability.
 
----
+## Validation still required
 
-## Architecture Overview
+Before a real-world pilot or production launch, Medfinet still requires:
 
-![MedfiNet Architecture Diagram](./docs/architecture.png)
+- physical NTAG215 card and reader testing
+- measured NFC and low-bandwidth performance
+- USSD/SMS provider sandbox and production validation
+- guided field-worker usability testing for offline workflows
+- named FHIR/DHIS2 partner interoperability testing
+- accessibility, browser and mobile-device testing
+- security review, recovery exercises and deployment monitoring
+- qualified clinical and language review of configured content
 
-```
-MedfiNet Frontend (React / Vite)
-       │
-       ├── Supabase JS SDK ──▶ Supabase Auth (JWT issue / refresh)
-       │
-       └── medfinetApiClient  ──▶ MedfiNet Backend API (Bearer token)
-                                       ├── Identity & Consent
-                                       ├── Immunization Records
-                                       ├── Telemedicine Sessions
-                                       ├── Rewards & Settlements
-                                       ├── NFC Tap Events
-                                       ├── Blockchain Certificate Verification
-                                       └── Analytics & Governance
-```
+## Technology
 
-### Key Modules
-
-| Module | Description |
-|---|---|
-| `src/auth` | Supabase sign-in, sign-up, password recovery, session management |
-| `src/immunization` | Record creation, QR code generation and scanning |
-| `src/nfc` | NFC tap listener, card provisioning flow |
-| `src/telemedicine` | Consultation session booking and video-call interface |
-| `src/rewards` | Token balance, redemption history, wallet link |
-| `src/climate` | Climate-response worklists and emergency dashboards |
-| `src/analytics` | Aggregate health metrics and visualizations |
-| `src/offline` | LocalForage-backed sync queue for low-connectivity environments |
-| `src/wallet` | Algorand wallet connection via PeraWallet |
-
----
-
-## Features
-
-- **Supabase Auth** — Email/password, session persistence, automatic token refresh.
-- **Digital Immunization Records** — Create, view, and share verified vaccination cards.
-- **QR Code Generation & Scanning** — Instant record lookup with `qrcode.react` and `jsqr`.
-- **NFC Tap Integration** — Tap NTAG215 wristbands to pull up a child's health record.
-- **Telemedicine** — Book and join remote consultations directly in the app.
-- **Rewards Dashboard** — View token balance, micro-incentive history, and redeem rewards.
-- **Climate-Response Worklists** — Prioritized field-worker task queues for disaster zones.
-- **Interactive Maps** — Healthcare facility lookup with Leaflet and Mapbox GL.
-- **Analytics & Charts** — Population-level health metrics with Chart.js.
-- **Algorand Wallet** — Connect PeraWallet to sign and verify on-chain health certificates.
-- **Offline Support** — LocalForage sync queue keeps data current across connectivity gaps.
-
----
-
-## Tech Stack
-
-| Category | Technologies |
-|---|---|
-| **Framework** | React 18, Vite, TypeScript |
-| **Styling** | TailwindCSS |
-| **Auth & Storage** | Supabase JS SDK |
-| **Blockchain** | Algorand SDK, PeraWallet Connect |
-| **Maps** | Leaflet, Mapbox GL |
-| **Charts** | Chart.js |
-| **HTTP** | Axios |
-| **Offline Storage** | LocalForage |
-| **Icons** | Phosphor Icons, Lucide React |
-| **Payments** | Stripe React |
-| **Testing** | Vitest, Testing Library |
-| **Dev Tools** | ESLint, TypeScript, Vite |
-
----
-
-## Installation
-
-```bash
-git clone https://github.com/Daniel419797/medfinet_frontend.git
-cd medfinet_frontend
-npm install
-```
-
----
+- React 18 and TypeScript
+- Vite
+- React Router
+- Tailwind CSS
+- Supabase Auth
+- LocalForage and Web Crypto for encrypted offline queues
+- Algorand tooling for supported wallet/evidence interfaces
+- Vitest and Testing Library
 
 ## Configuration
 
-Create a `.env` file in the project root:
+Copy the example environment file:
 
 ```bash
 cp .env.example .env
 ```
 
-Fill in the required values:
+Set the public browser configuration:
 
 ```env
-VITE_SUPABASE_URL=https://<project>.supabase.co
-VITE_SUPABASE_ANON_KEY=<your-anon-key>
-VITE_API_BASE_URL=https://medfinet-backend.onrender.com/api/v1
-VITE_MAPBOX_TOKEN=<your-mapbox-token>
+VITE_MEDFINET_API_URL=http://localhost:5000/api/v1
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-public-anon-key
 ```
 
-> Never commit `.env` to version control — all secrets must stay local or in your deployment platform's environment settings.
+`VITE_MEDFINET_API_URL` is the API variable used by the application. Do not use `VITE_API_BASE_URL`.
 
----
+Never place service-role keys, NFC provisioning secrets, private wallet keys or other server credentials in a Vite environment variable. Every `VITE_` value is available to browser code.
 
-## Scripts
+## Authentication model
 
-| Command | Description |
-|---|---|
-| `npm run dev` | Start the Vite development server (`http://localhost:5173`) |
-| `npm run build` | Build the production bundle to `dist/` |
-| `npm run preview` | Locally preview the production build |
-| `npm run lint` | Run ESLint across all source files |
-| `npm test` | Run the full Vitest unit-test suite |
-| `npm run test:watch` | Run Vitest in interactive watch mode |
+Supabase owns browser session persistence and token refresh. Medfinet API requests obtain the current access token from the active Supabase session and attach it as a bearer token.
 
----
+The application does not maintain a second custom copy of access or refresh tokens in separate local-storage keys. The selected organization ID is stored locally as a non-secret user preference.
+
+## NFC and offline behaviour
+
+The NFC application shell and static assets can be cached for later loading. Authoritative card verification and clinical record retrieval currently require connectivity to the Medfinet backend.
+
+Selected field operations can be queued locally using AES-GCM encryption with a non-exportable browser key and submitted idempotently when connectivity returns. This protects stored queue contents against casual inspection, but it does not make a compromised browser or device trustworthy.
+
+## Commands
+
+```bash
+npm install
+npm run dev
+npm run typecheck
+npm run lint
+npm test
+npm run build
+npm run check
+```
+
+`npm run check` runs type-checking, linting, tests and the production build. The same command runs in GitHub Actions for pull requests and pushes to `main`.
 
 ## Deployment
 
-The frontend is deployed on [Render](https://render.com) as a static site.
+The repository currently reports successful Vercel deployment checks. Deployment configuration must provide the three required public environment variables listed above and must route SPA paths back to `index.html`.
 
-1. Push to `main` — Render auto-deploys on new commits.
-2. Set `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_BASE_URL`, and any other required env vars in **Render → Environment**.
-3. Render runs `npm run build` and serves the `dist/` folder.
-
----
-
-## Security
-
-Never commit `.env`, Supabase keys, Mapbox tokens, or wallet mnemonics.  
-The `medfinetApiClient` attaches a `Authorization: Bearer <token>` header on every API call using the active Supabase session token — no tokens are stored in plain `localStorage` beyond what Supabase SDK manages internally.
-
----
-
-## Contact
-
-For inquiries, partnerships, or collaboration opportunities reach out at **danieladedayooluwole@gmail.com**.
-
----
+A successful build or deployment does not constitute production or clinical sign-off.
 
 ## License
 
-This project does not include an open-source license and is considered **proprietary** by default.
+No open-source license is currently included. The repository should be treated as proprietary unless a license is added by the owner.
