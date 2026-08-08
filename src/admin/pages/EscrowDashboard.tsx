@@ -158,7 +158,7 @@ export default function EscrowDashboard() {
             Check Status
           </button>
         </div>
-        {withdrawalStatus && (
+        {withdrawalStatus !== null && (
           <pre className="overflow-x-auto rounded-lg bg-slate-50 p-3 text-xs dark:bg-slate-800">
             {JSON.stringify(withdrawalStatus, null, 2)}
           </pre>

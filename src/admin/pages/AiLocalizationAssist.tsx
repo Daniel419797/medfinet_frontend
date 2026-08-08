@@ -1,9 +1,8 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useContext, useState } from "react";
 import { Languages } from "lucide-react";
 import { PageFeedback } from "../../components/common/PageFeedback";
 import { medfinetAiApi } from "../../services/medfinetAiApi";
 import UserContext from "../../contexts/UserContext";
-import { useContext } from "react";
 
 const input = "mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm";
 const primary = "rounded-lg bg-cyan-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50";
@@ -89,7 +88,7 @@ export default function AiLocalizationAssist() {
       </form>
 
       <PageFeedback loading={false} error={error}>
-        {results && (
+        {results !== null && (
           <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-900">
             <div className="mb-3 text-sm font-semibold text-slate-800">Translation Result</div>
             <pre className="overflow-x-auto whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">

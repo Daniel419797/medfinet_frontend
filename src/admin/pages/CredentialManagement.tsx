@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useContext, useEffect, useState } from "react";
-import { CreditCard, Eye, List, Plus } from "lucide-react";
+import { CreditCard, Eye, Plus } from "lucide-react";
 import UserContext from "../../contexts/UserContext";
 import { Modal } from "../../components/common/Modal";
 import { PageFeedback } from "../../components/common/PageFeedback";
@@ -184,10 +184,13 @@ export default function CredentialManagement() {
         </div>
       </PageFeedback>
 
-      {/* Bulk issuance modal */}
-      <Modal open={bulkOpen} onClose={() => setBulkOpen(false)}>
+      <Modal
+        open={bulkOpen}
+        title="Bulk credential issuance"
+        description="Issue QR or recovery credentials to several children in one operation."
+        onClose={() => setBulkOpen(false)}
+      >
         <form onSubmit={handleBulkIssue} className="space-y-4">
-          <h2 className="text-lg font-bold">Bulk Credential Issuance</h2>
           {bulkForm.map((row, idx) => (
             <div key={idx} className="grid grid-cols-3 gap-2">
               <select value={row.childId} onChange={(e) => {
@@ -219,11 +222,14 @@ export default function CredentialManagement() {
         </form>
       </Modal>
 
-      {/* Detail modal */}
-      <Modal open={!!detailCredential} onClose={() => setDetailCredential(null)}>
+      <Modal
+        open={!!detailCredential}
+        title="Credential details"
+        description="Review the issuance and expiry information for this credential."
+        onClose={() => setDetailCredential(null)}
+      >
         {detailCredential && (
           <div className="space-y-3">
-            <h2 className="text-lg font-bold">Credential Detail</h2>
             <dl className="grid grid-cols-2 gap-2 text-sm">
               <dt className="font-semibold text-slate-600">ID</dt>
               <dd className="break-all">{detailCredential.id}</dd>
