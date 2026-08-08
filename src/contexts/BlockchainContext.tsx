@@ -64,6 +64,14 @@ function errorMessage(reason: unknown) {
   return "Wallet operation failed";
 }
 
+function defaultChainId(network?: string | null): PeraChainId {
+  const normalized = network?.toLowerCase();
+  if (normalized === "mainnet") return 416001;
+  if (normalized === "testnet") return 416002;
+  if (normalized === "betanet") return 416003;
+  return 4160;
+}
+
 export function BlockchainProvider({ children }: { children: ReactNode }) {
   const { organizationId } = useContext(UserContext);
   const [health, setHealth] = useState<BlockchainHealth | null>(null);
@@ -73,7 +81,8 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
   const [walletConnecting, setWalletConnecting] = useState(false);
   const [walletError, setWalletError] = useState<string | null>(null);
 
-  const chainId = (health?.walletConnect?.chainId || 4160) as PeraChainId;
+  const walletEnabled = Boolean(health?.enabled && (health.walletConnect?.enabled ?? true));
+  const chainId = (health?.walletConnect?.chainId || defaultChainId(health?.network)) as PeraChainId;
   const peraWallet = useMemo(() => new PeraWalletConnect({ chainId, shouldShowSignTxnToast: true }), [chainId]);
 
   const refreshCapabilities = useCallback(async () => {
@@ -105,7 +114,7 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
   }, [refreshCapabilities]);
 
   useEffect(() => {
-    if (!health?.enabled || !health.reachable || !health.walletConnect?.enabled) {
+    if (!walletEnabled || !health?.reachable) {
       setWalletAddress(null);
       return;
     }
@@ -116,12 +125,15 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
       if (!cancelled) setWalletAddress(null);
     });
     return () => { cancelled = true; };
-  }, [health?.enabled, health?.reachable, health?.walletConnect?.enabled, peraWallet]);
+  }, [health?.reachable, peraWallet, walletEnabled]);
 
-  const featureEnabled = useCallback((feature: BlockchainFeature) => Boolean(health?.enabled && health.features?.[feature]), [health]);
+  const featureEnabled = useCallback((feature: BlockchainFeature) => {
+    if (!health?.enabled) return false;
+    return health.features?.[feature] ?? true;
+  }, [health]);
 
   const connectWallet = useCallback(async () => {
-    if (!health?.enabled || !health.reachable || !health.walletConnect?.enabled) throw new Error("Algorand wallet connection is not available in this environment");
+    if (!walletEnabled || !health?.reachable) throw new Error("Algorand wallet connection is not available in this environment");
     setWalletConnecting(true);
     setWalletError(null);
     try {
@@ -137,7 +149,7 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
     } finally {
       setWalletConnecting(false);
     }
-  }, [health, peraWallet]);
+  }, [health?.reachable, peraWallet, walletEnabled]);
 
   const disconnectWallet = useCallback(async () => {
     await peraWallet.disconnect();
