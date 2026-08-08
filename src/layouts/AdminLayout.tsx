@@ -27,10 +27,16 @@ import {
 import { useContext, useMemo } from "react";
 import { Outlet } from "react-router-dom";
 import { AppShell, type ShellNavigationGroup } from "../components/shell/AppShell";
+import { useBlockchain } from "../contexts/BlockchainContext";
 import UserContext from "../contexts/UserContext";
 
 export default function AdminLayout() {
   const { user } = useContext(UserContext);
+  const { featureEnabled } = useBlockchain();
+  const anchorsEnabled = featureEnabled("anchors");
+  const donationsEnabled = featureEnabled("donations");
+  const escrowEnabled = featureEnabled("escrow");
+
   const navigation = useMemo<ShellNavigationGroup[]>(
     () => [
       {
@@ -72,7 +78,7 @@ export default function AdminLayout() {
           { label: "FHIR and DHIS2", path: "/admin/api", icon: PlugsConnected },
           { label: "Mapping assist", path: "/admin/ai/mapping", icon: PlugsConnected },
           { label: "Data governance", path: "/admin/governance", icon: Scales },
-          { label: "Blockchain evidence", path: "/admin/blockchain", icon: LinkSimple },
+          ...(anchorsEnabled ? [{ label: "Blockchain evidence", path: "/admin/blockchain", icon: LinkSimple }] : []),
           { label: "Languages", path: "/admin/localization", icon: Translate },
           { label: "AI localization", path: "/admin/ai/localization", icon: Translate },
         ],
@@ -85,15 +91,21 @@ export default function AdminLayout() {
           { label: "Reward anomalies", path: "/admin/ai/rewards", icon: Warning },
         ],
       },
-      {
-        label: "Finance",
-        icon: HandCoins,
-        items: [
-          { label: "Donations", path: "/admin/donations", icon: HandCoins },
-          { label: "Escrow", path: "/admin/escrow", icon: CreditCard },
-          { label: "Credentials", path: "/admin/credentials", icon: CreditCard },
-        ],
-      },
+      ...((donationsEnabled || escrowEnabled)
+        ? [{
+            label: "Finance",
+            icon: HandCoins,
+            items: [
+              ...(donationsEnabled ? [{ label: "Donations", path: "/admin/donations", icon: HandCoins }] : []),
+              ...(escrowEnabled ? [{ label: "Escrow", path: "/admin/escrow", icon: CreditCard }] : []),
+              { label: "Credentials", path: "/admin/credentials", icon: CreditCard },
+            ],
+          }]
+        : [{
+            label: "Finance",
+            icon: HandCoins,
+            items: [{ label: "Credentials", path: "/admin/credentials", icon: CreditCard }],
+          }]),
       {
         label: "Organization",
         icon: Power,
@@ -106,7 +118,7 @@ export default function AdminLayout() {
         ],
       },
     ],
-    [user?.role],
+    [anchorsEnabled, donationsEnabled, escrowEnabled, user?.role],
   );
 
   return (
