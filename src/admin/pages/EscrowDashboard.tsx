@@ -1,184 +1,225 @@
 import { FormEvent, useCallback, useContext, useEffect, useState } from "react";
-import { Landmark, ArrowUpCircle, ArrowDownCircle } from "lucide-react";
+import { CheckCircle, Landmark, Wallet, WarningCircle } from "@phosphor-icons/react";
+import BlockchainFeatureGate from "../../components/blockchain/BlockchainFeatureGate";
+import WalletStatusButton from "../../components/wallet/WalletStatusButton";
+import { useBlockchain } from "../../contexts/BlockchainContext";
 import UserContext from "../../contexts/UserContext";
-import { PageFeedback } from "../../components/common/PageFeedback";
-import { medfinetEscrowApi } from "../../services/medfinetEscrowApi";
 import { medfinetDonationApi } from "../../services/medfinetDonationApi";
+import {
+  medfinetEscrowApi,
+  type WithdrawalEligibility,
+} from "../../services/medfinetEscrowApi";
 
-const input = "mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm";
-const button = "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold disabled:opacity-50";
-const primary = "rounded-lg bg-cyan-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50";
+const input = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900";
+const primary = "inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-700 px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50";
 
-export default function EscrowDashboard() {
+function shortAddress(address: string) {
+  return `${address.slice(0, 8)}…${address.slice(-6)}`;
+}
+
+function EscrowWorkspace() {
   const { organizationId } = useContext(UserContext);
+  const {
+    health,
+    walletAddress,
+    walletConnecting,
+    connectWallet,
+    signTransactions,
+  } = useBlockchain();
   const [campaignId, setCampaignId] = useState("");
   const [balance, setBalance] = useState<{ balance: number; escrowAddress: string } | null>(null);
-  const [eligibility, setEligibility] = useState<unknown>(null);
-  const [recipientWallet, setRecipientWallet] = useState("");
-  const [withdrawalId, setWithdrawalId] = useState("");
-  const [withdrawalStatus, setWithdrawalStatus] = useState<unknown>(null);
-  const [donations, setDonations] = useState<Array<Record<string, unknown>>>([]);
+  const [eligibility, setEligibility] = useState<WithdrawalEligibility | null>(null);
+  const [donations, setDonations] = useState<Awaited<ReturnType<typeof medfinetDonationApi.listForCampaign>>>([]);
   const [loading, setLoading] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const loadBalance = useCallback(async () => {
+  const loadCampaign = useCallback(async () => {
     if (!organizationId || !campaignId) return;
     setLoading(true);
     setError(null);
+    setNotice(null);
     try {
-      const [b, e, d] = await Promise.all([
+      const [nextBalance, nextEligibility, nextDonations] = await Promise.all([
         medfinetEscrowApi.getBalance(organizationId, campaignId),
         medfinetEscrowApi.checkWithdrawalEligibility(organizationId, campaignId),
         medfinetDonationApi.listForCampaign(organizationId, campaignId),
       ]);
-      setBalance(b);
-      setEligibility(e);
-      setDonations(d as unknown as Array<Record<string, unknown>>);
+      setBalance(nextBalance);
+      setEligibility(nextEligibility);
+      setDonations(nextDonations);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Failed to load escrow data");
+      setError(reason instanceof Error ? reason.message : "Unable to load escrow details");
+      setBalance(null);
+      setEligibility(null);
+      setDonations([]);
     } finally {
       setLoading(false);
     }
-  }, [organizationId, campaignId]);
+  }, [campaignId, organizationId]);
 
-  useEffect(() => { if (campaignId) loadBalance(); }, [campaignId, loadBalance]);
+  useEffect(() => {
+    if (campaignId) void loadCampaign();
+  }, [campaignId, loadCampaign]);
 
-  const handlePayout = async () => {
-    if (!organizationId || !campaignId || busy) return;
-    setBusy(true);
+  async function handleLoad(event: FormEvent) {
+    event.preventDefault();
+    await loadCampaign();
+  }
+
+  async function handleWithdraw() {
+    if (!organizationId || !campaignId || withdrawing) return;
+    setWithdrawing(true);
     setError(null);
     setNotice(null);
     try {
-      const result = await medfinetEscrowApi.initiatePayout(organizationId, campaignId);
-      setNotice(`Payout initiated. Tx: ${result.transactionHash}`);
-      loadBalance();
+      const recipientWallet = walletAddress || (await connectWallet());
+      if (eligibility?.creatorWallet && recipientWallet !== eligibility.creatorWallet) {
+        throw new Error("Connect the campaign creator wallet to authorize this withdrawal");
+      }
+      const prepared = await medfinetEscrowApi.initiateWithdrawal(
+        organizationId,
+        campaignId,
+        { recipientWallet },
+      );
+      const signedTransaction = await signTransactions(prepared.unsignedTransactions);
+      const result = await medfinetEscrowApi.completeWithdrawal(
+        organizationId,
+        prepared.withdrawalId,
+        { signedTransaction },
+      );
+      setNotice(`Withdrawal confirmed on ${health?.network || "Algorand"}. Transaction: ${result.transactionHash}`);
+      await loadCampaign();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Payout failed");
+      setError(reason instanceof Error ? reason.message : "Unable to complete withdrawal");
     } finally {
-      setBusy(false);
+      setWithdrawing(false);
     }
-  };
-
-  const handleWithdraw = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!organizationId || !campaignId || !recipientWallet || busy) return;
-    setBusy(true);
-    setError(null);
-    setNotice(null);
-    try {
-      const result = await medfinetEscrowApi.initiateWithdrawal(organizationId, campaignId, { recipientWallet });
-      setWithdrawalId(result.withdrawalId);
-      setNotice(`Withdrawal initiated. ID: ${result.withdrawalId}`);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Withdrawal failed");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const checkStatus = async () => {
-    if (!organizationId || !withdrawalId || busy) return;
-    setBusy(true);
-    try {
-      const result = await medfinetEscrowApi.getWithdrawalStatus(organizationId, withdrawalId);
-      setWithdrawalStatus(result);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Status check failed");
-    } finally {
-      setBusy(false);
-    }
-  };
+  }
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-6">
-      <header className="flex items-center gap-3">
-        <Landmark className="h-6 w-6 text-cyan-700" />
-        <div>
-          <h1 className="text-xl font-bold">Escrow Dashboard</h1>
-          <p className="text-sm text-slate-600">Monitor balances and manage fund flows.</p>
+    <main className="mx-auto max-w-5xl space-y-6">
+      <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+        <div className="flex items-start gap-3">
+          <span className="grid h-11 w-11 place-items-center bg-cyan-50 text-cyan-700">
+            <Landmark size={24} />
+          </span>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-cyan-700">Campaign escrow</p>
+            <h1 className="mt-1 text-2xl font-extrabold">Escrow settlement</h1>
+            <p className="mt-1 text-sm text-slate-600">Review balances and approve eligible withdrawals in the campaign creator's Pera Wallet.</p>
+          </div>
         </div>
+        <WalletStatusButton />
       </header>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-        <label className="block text-xs font-semibold text-slate-600">Campaign ID</label>
-        <div className="flex items-end gap-3">
-          <input value={campaignId} onChange={(e) => { setCampaignId(e.target.value); setBalance(null); setEligibility(null); }} className={input} />
-          <button onClick={loadBalance} disabled={!campaignId || loading} className={primary}>
-            {loading ? "Loading..." : "Load"}
-          </button>
-        </div>
-      </div>
-
-      <PageFeedback loading={loading} error={error} onRetry={loadBalance}>
-        {balance && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-              <p className="text-xs font-semibold text-slate-600">Balance</p>
-              <p className="mt-1 text-2xl font-bold text-cyan-700">{balance.balance}</p>
-              <p className="mt-1 text-xs text-slate-500 break-all">Address: {balance.escrowAddress}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-              <p className="text-xs font-semibold text-slate-600">Withdrawal Eligibility</p>
-              <pre className="mt-2 overflow-x-auto text-xs text-slate-700 dark:text-slate-300">
-                {JSON.stringify(eligibility, null, 2)}
-              </pre>
-            </div>
+      <form onSubmit={handleLoad} className="border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+        <label className="block text-sm font-bold text-slate-700 dark:text-slate-200">
+          Campaign ID
+          <div className="mt-1 flex flex-col gap-3 sm:flex-row">
+            <input
+              value={campaignId}
+              onChange={(event) => {
+                setCampaignId(event.target.value);
+                setBalance(null);
+                setEligibility(null);
+                setNotice(null);
+              }}
+              className={input}
+              required
+            />
+            <button type="submit" disabled={!campaignId || loading} className={primary}>
+              {loading ? "Loading…" : "Load escrow"}
+            </button>
           </div>
-        )}
-      </PageFeedback>
+        </label>
+      </form>
 
+      {error && <div className="border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-900">{error}</div>}
       {notice && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">{notice}</div>
+        <div className="flex items-start gap-3 border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">
+          <CheckCircle size={20} weight="fill" className="mt-0.5 shrink-0" />
+          <span className="break-all">{notice}</span>
+        </div>
       )}
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 space-y-3">
-        <h2 className="text-sm font-semibold text-slate-800">Actions</h2>
-        <div className="flex flex-wrap gap-3">
-          <button onClick={handlePayout} disabled={busy || !campaignId} className={`${primary} flex items-center gap-2`}>
-            <ArrowUpCircle className="h-4 w-4" /> Initiate Payout
-          </button>
-        </div>
-        <form onSubmit={handleWithdraw} className="flex flex-wrap items-end gap-3">
-          <div className="flex-1">
-            <label className="block text-xs font-semibold text-slate-600">Recipient wallet</label>
-            <input value={recipientWallet} onChange={(e) => setRecipientWallet(e.target.value)} className={input} />
+      {balance && eligibility && (
+        <section className="grid gap-5 lg:grid-cols-[1fr_.9fr]">
+          <div className="border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Escrow balance</p>
+            <p className="mt-3 text-4xl font-extrabold text-cyan-700">{balance.balance / 1_000_000} ALGO</p>
+            <p className="mt-3 break-all text-xs font-semibold text-slate-500">{balance.escrowAddress}</p>
+            <div className="mt-6 border-t border-slate-200 pt-4">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Connected signer</p>
+              <p className="mt-2 text-sm font-bold">{walletAddress ? shortAddress(walletAddress) : "Not connected"}</p>
+              <p className="mt-1 text-xs text-slate-500">{health?.network || "Algorand"}</p>
+            </div>
           </div>
-          <button type="submit" disabled={busy || !recipientWallet || !campaignId} className={primary}>
-            <ArrowDownCircle className="mr-1 inline h-4 w-4" /> Withdraw
-          </button>
-        </form>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex-1">
-            <label className="block text-xs font-semibold text-slate-600">Withdrawal ID</label>
-            <input value={withdrawalId} onChange={(e) => setWithdrawalId(e.target.value)} className={input} />
+
+          <div className="border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-start gap-3">
+              {eligibility.canWithdraw ? (
+                <CheckCircle size={24} weight="fill" className="text-emerald-600" />
+              ) : (
+                <WarningCircle size={24} weight="fill" className="text-amber-600" />
+              )}
+              <div>
+                <h2 className="text-lg font-extrabold">
+                  {eligibility.canWithdraw ? "Ready for wallet approval" : "Withdrawal not available"}
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  {eligibility.canWithdraw
+                    ? "The backend will prepare a grouped withdrawal. Pera Wallet will show every transaction before you approve it."
+                    : eligibility.reason || "The campaign does not meet the withdrawal conditions yet."}
+                </p>
+              </div>
+            </div>
+            {eligibility.creatorWallet && (
+              <div className="mt-5 border-y border-slate-200 py-4">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Required creator wallet</p>
+                <p className="mt-2 break-all text-xs font-semibold text-slate-700">{eligibility.creatorWallet}</p>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => void handleWithdraw()}
+              disabled={!eligibility.canWithdraw || withdrawing || walletConnecting}
+              className={`${primary} mt-5 w-full`}
+            >
+              <Wallet size={18} />
+              {withdrawing
+                ? "Waiting for Pera approval…"
+                : walletAddress
+                  ? "Prepare and sign withdrawal"
+                  : "Connect creator wallet and continue"}
+            </button>
           </div>
-          <button onClick={checkStatus} disabled={busy || !withdrawalId} className={button}>
-            Check Status
-          </button>
-        </div>
-        {withdrawalStatus && (
-          <pre className="overflow-x-auto rounded-lg bg-slate-50 p-3 text-xs dark:bg-slate-800">
-            {JSON.stringify(withdrawalStatus, null, 2)}
-          </pre>
-        )}
-      </div>
+        </section>
+      )}
 
       {donations.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-          <h2 className="mb-3 text-sm font-semibold text-slate-800">Donations for this campaign</h2>
-          <div className="space-y-2">
-            {donations.map((d, i) => (
-              <div key={i} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800">
-                <span>{String((d as any).donor?.name || `Donation ${i + 1}`)}</span>
-                <span className="font-semibold">{String((d as any).amount || "")}</span>
-                <span className="text-xs text-slate-500">{String((d as any).status || "")}</span>
+        <section className="border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+          <h2 className="border-b border-slate-200 px-5 py-4 text-sm font-extrabold">Confirmed campaign activity</h2>
+          <div className="divide-y divide-slate-200">
+            {donations.map((donation) => (
+              <div key={donation.id} className="grid gap-2 px-5 py-4 text-sm sm:grid-cols-[1fr_auto_auto] sm:items-center">
+                <span className="font-semibold">{donation.donor?.name || donation.donorWallet || "Wallet donor"}</span>
+                <span className="font-bold">{donation.amount} ALGO</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{donation.status}</span>
               </div>
             ))}
           </div>
-        </div>
+        </section>
       )}
     </main>
+  );
+}
+
+export default function EscrowDashboard() {
+  return (
+    <BlockchainFeatureGate feature="escrow">
+      <EscrowWorkspace />
+    </BlockchainFeatureGate>
   );
 }
