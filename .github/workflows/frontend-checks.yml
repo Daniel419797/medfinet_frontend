@@ -3,7 +3,9 @@ name: Frontend checks
 on:
   pull_request:
   push:
-    branches: [main]
+    branches:
+      - main
+      - agent/enable-algorand-wallet-ui
 
 permissions:
   contents: read
@@ -22,8 +24,29 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install and run checks
+        id: checks
+        shell: bash
+        run: |
+          set +e
+          npm ci > frontend-check.log 2>&1
+          status=$?
+          if [ "$status" -eq 0 ]; then
+            npm run check >> frontend-check.log 2>&1
+            status=$?
+          fi
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit 0
 
-      - name: Run frontend checks
-        run: npm run check
+      - name: Upload check log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-check-log
+          path: frontend-check.log
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Fail when checks failed
+        if: steps.checks.outputs.exit_code != '0'
+        run: exit "${{ steps.checks.outputs.exit_code }}"
