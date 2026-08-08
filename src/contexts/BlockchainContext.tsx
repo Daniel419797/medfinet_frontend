@@ -115,6 +115,15 @@ function storedNetwork(organizationId: string): AlgorandNetwork {
   return value === "mainnet" ? "mainnet" : "testnet";
 }
 
+async function safelyDisconnect(client?: PeraWalletClient | null) {
+  if (!client) return;
+  try {
+    await client.disconnect();
+  } catch {
+    // A stale WalletConnect session must not block a network switch.
+  }
+}
+
 export function BlockchainProvider({ children }: { children: ReactNode }) {
   const { organizationId } = useContext(UserContext);
   const [health, setHealth] = useState<BlockchainHealth | null>(null);
@@ -130,10 +139,9 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
     client: PeraWalletClient;
   } | null>(null);
 
-  const availableNetworks =
-    health?.availableNetworks?.length
-      ? health.availableNetworks
-      : FALLBACK_NETWORKS;
+  const availableNetworks = health?.availableNetworks?.length
+    ? health.availableNetworks
+    : FALLBACK_NETWORKS;
   const walletEnabled = Boolean(
     health?.enabled && (health.walletConnect?.enabled ?? true),
   );
@@ -150,8 +158,7 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
       return walletClientRef.current.client;
     }
 
-    const previous = walletClientRef.current?.client;
-    if (previous) await previous.disconnect().catch(() => undefined);
+    await safelyDisconnect(walletClientRef.current?.client);
 
     const { PeraWalletConnect } = await import("@perawallet/connect");
     const client = new PeraWalletConnect({
@@ -233,8 +240,7 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
   );
 
   const disconnectWallet = useCallback(async () => {
-    const client = walletClientRef.current?.client;
-    if (client) await client.disconnect().catch(() => undefined);
+    await safelyDisconnect(walletClientRef.current?.client);
     walletClientRef.current = null;
     setWalletAddress(null);
     setWalletError(null);
