@@ -1,4 +1,4 @@
-import { PeraWalletConnect, type SignerTransaction } from "@perawallet/connect";
+import { PeraWalletConnect } from "@perawallet/connect";
 import algosdk from "algosdk";
 import {
   createContext,
@@ -161,7 +161,7 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
     if (!walletAddress) throw new Error("Connect Pera Wallet before signing");
     if (!health?.enabled || !health.reachable) throw new Error("Algorand is currently unavailable");
     if (!unsignedTransactions.length) throw new Error("No unsigned transactions were returned by the backend");
-    const signerGroup: SignerTransaction[] = unsignedTransactions.map((encoded) => ({
+    const signerGroup = unsignedTransactions.map((encoded) => ({
       txn: algosdk.decodeUnsignedTransaction(base64ToBytes(encoded)),
       signers: [walletAddress],
     }));
