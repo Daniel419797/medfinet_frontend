@@ -13,6 +13,7 @@ import {
 } from "../services/medfinetSessionApi";
 import { medfinetAuthApi } from "../services/medfinetAuthApi";
 import { supabase } from "../services/supabaseClient";
+import { BlockchainProvider } from "./BlockchainContext";
 
 interface UserContextType {
   user: User | null;
@@ -169,7 +170,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         refreshSession,
       }}
     >
-      {children}
+      <BlockchainProvider>{children}</BlockchainProvider>
     </UserContext.Provider>
   );
 };
