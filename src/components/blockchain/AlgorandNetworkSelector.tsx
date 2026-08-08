@@ -3,7 +3,7 @@ import {
   GlobeHemisphereWest,
   Warning,
 } from "@phosphor-icons/react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useBlockchain } from "../../contexts/BlockchainContext";
 import type { AlgorandNetwork } from "../../services/medfinetBlockchainApi";
 import { Modal } from "../common/Modal";
@@ -19,9 +19,34 @@ export default function AlgorandNetworkSelector() {
   const [confirmMainnet, setConfirmMainnet] = useState(false);
   const [switching, setSwitching] = useState(false);
 
-  if (!health?.enabled) return null;
+  const advertisedNetworks = useMemo(
+    () =>
+      health?.availableNetworks?.length
+        ? health.availableNetworks
+        : availableNetworks.filter((network) => network.id === "testnet"),
+    [availableNetworks, health?.availableNetworks],
+  );
+  const available = useMemo(
+    () => new Set(advertisedNetworks.map((network) => network.id)),
+    [advertisedNetworks],
+  );
 
-  const available = new Set(availableNetworks.map((network) => network.id));
+  useEffect(() => {
+    if (!health?.enabled || available.has(selectedNetwork)) return;
+    const fallback =
+      advertisedNetworks.find((network) => network.isDefault)?.id ||
+      advertisedNetworks[0]?.id ||
+      "testnet";
+    void selectNetwork(fallback);
+  }, [
+    advertisedNetworks,
+    available,
+    health?.enabled,
+    selectNetwork,
+    selectedNetwork,
+  ]);
+
+  if (!health?.enabled) return null;
 
   async function applyNetwork(network: AlgorandNetwork) {
     setSwitching(true);
