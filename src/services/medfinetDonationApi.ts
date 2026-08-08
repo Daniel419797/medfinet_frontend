@@ -1,4 +1,5 @@
 import { medfinetRequest as request } from './medfinetApiClient';
+import type { AlgorandNetwork } from './medfinetBlockchainApi';
 
 export type CampaignDonation = {
   id: string;
@@ -9,10 +10,19 @@ export type CampaignDonation = {
   createdAt: string;
 };
 
+function networkHeaders(network: AlgorandNetwork) {
+  return { 'x-algorand-network': network };
+}
+
 export const medfinetDonationApi = {
-  prepare(orgId: string, body: { campaignId: string; amount: number; donorWallet: string }) {
+  prepare(
+    orgId: string,
+    network: AlgorandNetwork,
+    body: { campaignId: string; amount: number; donorWallet: string },
+  ) {
     return request<{
       donationId: string;
+      network: AlgorandNetwork;
       unsignedTransactions: string[];
       transactionHash: string;
       campaign: { title: string; escrowAddress: string };
@@ -21,22 +31,43 @@ export const medfinetDonationApi = {
       body,
       organizationId: orgId,
       purpose: 'donation-prepare',
+      headers: networkHeaders(network),
     });
   },
 
-  confirm(orgId: string, body: { donationId: string; signedTransaction: string | string[] }) {
-    return request<{ transactionHash: string }>('/donations/confirm', {
-      method: 'POST',
-      body,
-      organizationId: orgId,
-      purpose: 'donation-confirm',
-    });
+  confirm(
+    orgId: string,
+    network: AlgorandNetwork,
+    body: {
+      donationId: string;
+      signedTransaction: string | string[];
+      network: AlgorandNetwork;
+    },
+  ) {
+    return request<{ transactionHash: string; network: AlgorandNetwork }>(
+      '/donations/confirm',
+      {
+        method: 'POST',
+        body,
+        organizationId: orgId,
+        purpose: 'donation-confirm',
+        headers: networkHeaders(network),
+      },
+    );
   },
 
-  listForCampaign(orgId: string, campaignId: string) {
-    return request<CampaignDonation[]>(`/donations/campaign/${encodeURIComponent(campaignId)}`, {
-      organizationId: orgId,
-      purpose: 'donation-list',
-    });
+  listForCampaign(
+    orgId: string,
+    campaignId: string,
+    network: AlgorandNetwork,
+  ) {
+    return request<CampaignDonation[]>(
+      `/donations/campaign/${encodeURIComponent(campaignId)}`,
+      {
+        organizationId: orgId,
+        purpose: 'donation-list',
+        headers: networkHeaders(network),
+      },
+    );
   },
 };
