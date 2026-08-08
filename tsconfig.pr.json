@@ -8,19 +8,10 @@
   "files": [
     "src/pages/landing/LandingPage.tsx",
     "src/pages/offline/OfflineSync.tsx",
-    "src/admin/pages/DonationFlow.tsx",
-    "src/admin/pages/EscrowDashboard.tsx",
     "src/components/auth/AuthenticatedRoute.tsx",
-    "src/components/blockchain/BlockchainFeatureGate.tsx",
-    "src/components/wallet/WalletStatusButton.tsx",
-    "src/contexts/BlockchainContext.tsx",
     "src/contexts/UserContext.tsx",
-    "src/layouts/AdminLayout.tsx",
     "src/services/medfinetAuthApi.ts",
     "src/services/medfinetApiClient.ts",
-    "src/services/medfinetBlockchainApi.ts",
-    "src/services/medfinetDonationApi.ts",
-    "src/services/medfinetEscrowApi.ts",
     "src/services/supabaseClient.ts"
   ],
   "include": []
