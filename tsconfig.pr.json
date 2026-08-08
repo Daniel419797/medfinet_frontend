@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
+  },
+  "files": [
+    "src/pages/landing/LandingPage.tsx",
+    "src/pages/offline/OfflineSync.tsx",
+    "src/components/auth/AuthenticatedRoute.tsx",
+    "src/contexts/UserContext.tsx",
+    "src/services/medfinetAuthApi.ts",
+    "src/services/medfinetApiClient.ts"
+  ],
+  "include": []
+}
