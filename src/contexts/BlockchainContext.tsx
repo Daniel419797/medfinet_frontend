@@ -11,6 +11,8 @@ import {
 import UserContext from "./UserContext";
 import {
   medfinetBlockchainApi,
+  type AlgorandNetwork,
+  type AlgorandNetworkOption,
   type BlockchainHealth,
 } from "../services/medfinetBlockchainApi";
 
@@ -24,25 +26,51 @@ type BlockchainContextValue = {
   health: BlockchainHealth | null;
   loading: boolean;
   error: string | null;
+  selectedNetwork: AlgorandNetwork;
+  availableNetworks: AlgorandNetworkOption[];
   walletAddress: string | null;
   walletConnecting: boolean;
   walletError: string | null;
   featureEnabled: (feature: BlockchainFeature) => boolean;
   refreshCapabilities: () => Promise<void>;
+  selectNetwork: (network: AlgorandNetwork) => Promise<void>;
   connectWallet: () => Promise<string>;
   disconnectWallet: () => Promise<void>;
-  signTransactions: (unsignedTransactions: string[]) => Promise<string[]>;
+  signTransactions: (
+    unsignedTransactions: string[],
+    expectedNetwork?: AlgorandNetwork,
+  ) => Promise<string[]>;
 };
+
+const FALLBACK_NETWORKS: AlgorandNetworkOption[] = [
+  {
+    id: "testnet",
+    label: "Algorand TestNet",
+    chainId: 416002,
+    isDefault: true,
+    explorerTransactionUrl: "https://testnet.explorer.perawallet.app/tx",
+  },
+  {
+    id: "mainnet",
+    label: "Algorand MainNet",
+    chainId: 416001,
+    isDefault: false,
+    explorerTransactionUrl: "https://explorer.perawallet.app/tx",
+  },
+];
 
 const BlockchainContext = createContext<BlockchainContextValue>({
   health: null,
   loading: false,
   error: null,
+  selectedNetwork: "testnet",
+  availableNetworks: FALLBACK_NETWORKS,
   walletAddress: null,
   walletConnecting: false,
   walletError: null,
   featureEnabled: () => false,
   refreshCapabilities: async () => undefined,
+  selectNetwork: async () => undefined,
   connectWallet: async () => {
     throw new Error("Blockchain wallet is unavailable");
   },
@@ -74,12 +102,17 @@ function errorMessage(reason: unknown) {
   return "Wallet operation failed";
 }
 
-function defaultChainId(network?: string | null): PeraChainId {
-  const normalized = network?.toLowerCase();
-  if (normalized === "mainnet") return 416001;
-  if (normalized === "testnet") return 416002;
-  if (normalized === "betanet") return 416003;
-  return 4160;
+function defaultChainId(network: AlgorandNetwork): PeraChainId {
+  return network === "mainnet" ? 416001 : 416002;
+}
+
+function storageKey(organizationId: string) {
+  return `medfinet_algorand_network:${organizationId}`;
+}
+
+function storedNetwork(organizationId: string): AlgorandNetwork {
+  const value = window.localStorage.getItem(storageKey(organizationId));
+  return value === "mainnet" ? "mainnet" : "testnet";
 }
 
 export function BlockchainProvider({ children }: { children: ReactNode }) {
@@ -87,6 +120,8 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
   const [health, setHealth] = useState<BlockchainHealth | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedNetwork, setSelectedNetwork] =
+    useState<AlgorandNetwork>("testnet");
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [walletConnecting, setWalletConnecting] = useState(false);
   const [walletError, setWalletError] = useState<string | null>(null);
@@ -95,18 +130,29 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
     client: PeraWalletClient;
   } | null>(null);
 
+  const availableNetworks =
+    health?.availableNetworks?.length
+      ? health.availableNetworks
+      : FALLBACK_NETWORKS;
   const walletEnabled = Boolean(
     health?.enabled && (health.walletConnect?.enabled ?? true),
   );
   const chainId = (health?.walletConnect?.chainId ||
-    defaultChainId(health?.network)) as PeraChainId;
+    defaultChainId(selectedNetwork)) as PeraChainId;
+
+  useEffect(() => {
+    if (!organizationId) return;
+    setSelectedNetwork(storedNetwork(organizationId));
+  }, [organizationId]);
 
   const loadWalletClient = useCallback(async () => {
     if (walletClientRef.current?.chainId === chainId) {
       return walletClientRef.current.client;
     }
 
-    // Do not put WalletConnect into the public landing-page startup path.
+    const previous = walletClientRef.current?.client;
+    if (previous) await previous.disconnect().catch(() => undefined);
+
     const { PeraWalletConnect } = await import("@perawallet/connect");
     const client = new PeraWalletConnect({
       chainId,
@@ -125,14 +171,16 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
 
     setLoading(true);
     try {
-      setHealth(await medfinetBlockchainApi.health(organizationId));
+      setHealth(
+        await medfinetBlockchainApi.health(organizationId, selectedNetwork),
+      );
       setError(null);
     } catch (reason) {
       setError(errorMessage(reason));
     } finally {
       setLoading(false);
     }
-  }, [organizationId]);
+  }, [organizationId, selectedNetwork]);
 
   useEffect(() => {
     void refreshCapabilities();
@@ -184,10 +232,32 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
     [health],
   );
 
+  const disconnectWallet = useCallback(async () => {
+    const client = walletClientRef.current?.client;
+    if (client) await client.disconnect().catch(() => undefined);
+    walletClientRef.current = null;
+    setWalletAddress(null);
+    setWalletError(null);
+  }, []);
+
+  const selectNetwork = useCallback(
+    async (network: AlgorandNetwork) => {
+      if (network === selectedNetwork) return;
+      await disconnectWallet();
+      if (organizationId) {
+        window.localStorage.setItem(storageKey(organizationId), network);
+      }
+      setHealth(null);
+      setError(null);
+      setSelectedNetwork(network);
+    },
+    [disconnectWallet, organizationId, selectedNetwork],
+  );
+
   const connectWallet = useCallback(async () => {
     if (!walletEnabled || !health?.reachable) {
       throw new Error(
-        "Algorand wallet connection is not available in this environment",
+        `Algorand wallet connection is not available on ${selectedNetwork}`,
       );
     }
 
@@ -207,22 +277,23 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
     } finally {
       setWalletConnecting(false);
     }
-  }, [health?.reachable, loadWalletClient, walletEnabled]);
-
-  const disconnectWallet = useCallback(async () => {
-    const client = walletClientRef.current?.client;
-    if (client) await client.disconnect();
-    setWalletAddress(null);
-    setWalletError(null);
-  }, []);
+  }, [health?.reachable, loadWalletClient, selectedNetwork, walletEnabled]);
 
   const signTransactions = useCallback(
-    async (unsignedTransactions: string[]) => {
+    async (
+      unsignedTransactions: string[],
+      expectedNetwork?: AlgorandNetwork,
+    ) => {
+      if (expectedNetwork && expectedNetwork !== selectedNetwork) {
+        throw new Error(
+          `This transaction was prepared on ${expectedNetwork}. Switch back before signing.`,
+        );
+      }
       if (!walletAddress) {
         throw new Error("Connect Pera Wallet before signing");
       }
       if (!health?.enabled || !health.reachable) {
-        throw new Error("Algorand is currently unavailable");
+        throw new Error(`Algorand ${selectedNetwork} is currently unavailable`);
       }
       if (!unsignedTransactions.length) {
         throw new Error("No unsigned transactions were returned by the backend");
@@ -237,7 +308,13 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
       const signedTransactions = await client.signTransaction([signerGroup]);
       return signedTransactions.map(bytesToBase64);
     },
-    [health?.enabled, health?.reachable, loadWalletClient, walletAddress],
+    [
+      health?.enabled,
+      health?.reachable,
+      loadWalletClient,
+      selectedNetwork,
+      walletAddress,
+    ],
   );
 
   const value = useMemo<BlockchainContextValue>(
@@ -245,11 +322,14 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
       health,
       loading,
       error,
+      selectedNetwork,
+      availableNetworks,
       walletAddress,
       walletConnecting,
       walletError,
       featureEnabled,
       refreshCapabilities,
+      selectNetwork,
       connectWallet,
       disconnectWallet,
       signTransactions,
@@ -258,11 +338,14 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
       health,
       loading,
       error,
+      selectedNetwork,
+      availableNetworks,
       walletAddress,
       walletConnecting,
       walletError,
       featureEnabled,
       refreshCapabilities,
+      selectNetwork,
       connectWallet,
       disconnectWallet,
       signTransactions,
