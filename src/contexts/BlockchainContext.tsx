@@ -1,5 +1,5 @@
 import { PeraWalletConnect } from "@perawallet/connect";
-import algosdk from "algosdk";
+import { decodeUnsignedTransaction, type Transaction } from "algosdk";
 import {
   createContext,
   useCallback,
@@ -18,7 +18,7 @@ import {
 type BlockchainFeature = "anchors" | "donations" | "escrow";
 type PeraChainId = 416001 | 416002 | 416003 | 4160;
 type SignerTransaction = {
-  txn: algosdk.Transaction;
+  txn: Transaction;
   signers?: string[];
 };
 
@@ -186,7 +186,7 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
       }
 
       const signerGroup: SignerTransaction[] = unsignedTransactions.map((encoded) => ({
-        txn: algosdk.decodeUnsignedTransaction(base64ToBytes(encoded)),
+        txn: decodeUnsignedTransaction(base64ToBytes(encoded)),
         signers: [walletAddress],
       }));
       const signedTransactions = await peraWallet.signTransaction([signerGroup]);
