@@ -1,123 +1,118 @@
-import { PeraWalletConnect } from '@perawallet/connect';
-import algosdk from 'algosdk'
+import { PeraWalletConnect } from "@perawallet/connect";
+import algosdk from "algosdk";
+
+export type WalletSnapshot = {
+  address: string | null;
+  connected: boolean;
+  ready: boolean;
+};
+
+type WalletListener = (snapshot: WalletSnapshot) => void;
+
+function decodeBase64(value: string): Uint8Array {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function encodeBase64(value: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < value.length; index += chunkSize) {
+    binary += String.fromCharCode(...value.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+}
+
 class PeraWalletService {
-  private peraWallet: PeraWalletConnect;
-  private accountAddress: string | null = null;
-  private listeners: Set<(address: string | null) => void> = new Set();
+  private readonly wallet = new PeraWalletConnect({ shouldShowSignTxnToast: true });
+  private address: string | null = null;
+  private ready = false;
+  private readonly listeners = new Set<WalletListener>();
+  private reconnectPromise: Promise<void> | null = null;
 
   constructor() {
-    this.peraWallet = new PeraWalletConnect({
-    //   shouldShowSignTxnToast: true,
-    //   chainId: 416002,
-         network: "testnet"
-    });
-
-    this.peraWallet.connector?.on('disconnect', () => {
-      this.accountAddress = null;
-      this.notifyListeners();
-    });
-
-    this.reconnectSession();
+    void this.reconnect();
   }
 
-  private async reconnectSession() {
-    try {
-      const accounts = await this.peraWallet.reconnectSession();
-      if (accounts && accounts.length > 0) {
-        this.accountAddress = accounts[0];
-        this.notifyListeners();
-      }
-    } catch (error) {
-      console.error('Failed to reconnect session:', error);
-    }
-  }
-
-  async connect(): Promise<string | null> {
-    try {
-      const accounts = await this.peraWallet.connect();
-      if (accounts && accounts.length > 0) {
-        this.accountAddress = accounts[0];
-        this.notifyListeners();
-        return this.accountAddress;
-      }
-      return null;
-    } catch (error) {
-      console.error('Pera Wallet connection failed:', error);
-      throw error;
-    }
-  }
-
-  async disconnect(): Promise<void> {
-    try {
-      await this.peraWallet.disconnect();
-      this.accountAddress = null;
-      this.notifyListeners();
-    } catch (error) {
-      console.error('Pera Wallet disconnection failed:', error);
-    }
-  }
-
-  getAddress(): string | null {
-    return this.accountAddress;
-  }
-
-  isConnected(): boolean {
-    return !!this.accountAddress;
-  }
-
-  // async signTransaction(txn: any): Promise<Uint8Array> {
-  //   try {
-  //     const singleTxnGroups = [{ txn, signers: [this.accountAddress!] }];
-  //     const signedTxn = await this.peraWallet.signTransaction([singleTxnGroups]);
-  //     return signedTxn[0];
-  //   } catch (error) {
-  //     console.error('Transaction signing failed:', error);
-  //     throw error;
-  //   }
-  // }
-
-  async signTransaction(unsignedTransactionsBase64: string): Promise<string> {
-    try {
-      if (typeof unsignedTransactionsBase64 === 'string') {
-        unsignedTransactionsBase64 = [unsignedTransactionsBase64];
-      }
-      const unsignedTransactions = unsignedTransactionsBase64.map(txnBase64 => 
-      algosdk.decodeUnsignedTransaction(Buffer.from(txnBase64, 'base64'))
-        );
-
-        // Create the transaction group for Pera Wallet
-        const transactionGroup = unsignedTransactions.map(txn => ({ txn }));
-
-        // Sign with Pera Wallet - pass the array of transactions
-        const signedTxn = await this.peraWallet.signTransaction([transactionGroup]);
-
-        // Convert signed transactions to base64
-        function uint8ArrayToBase64(u8arr: Uint8Array) {
-          return btoa(String.fromCharCode(...u8arr));
-        }
-
-        // Handle the response - Pera Wallet returns an array of signed transactions
-        const signedTxnBase64Array = signedTxn.map(txn => uint8ArrayToBase64(txn));
-        console.log(signedTxnBase64Array)
-        
-        return signedTxnBase64Array;
-    } catch (error) {
-      console.error('Transaction signing error:', error);
-      throw error;
-    }
-  }
-
-  onAccountChange(callback: (address: string | null) => void): () => void {
-    this.listeners.add(callback);
-    return () => {
-      this.listeners.delete(callback);
+  private snapshot(): WalletSnapshot {
+    return {
+      address: this.address,
+      connected: Boolean(this.address),
+      ready: this.ready,
     };
   }
 
-  private notifyListeners() {
-    this.listeners.forEach(listener => listener(this.accountAddress));
+  private notify(): void {
+    const snapshot = this.snapshot();
+    this.listeners.forEach((listener) => listener(snapshot));
+  }
+
+  async reconnect(): Promise<void> {
+    if (this.reconnectPromise) return this.reconnectPromise;
+
+    this.reconnectPromise = (async () => {
+      try {
+        const accounts = await this.wallet.reconnectSession();
+        this.address = accounts[0] ?? null;
+      } catch {
+        this.address = null;
+      } finally {
+        this.ready = true;
+        this.notify();
+        this.reconnectPromise = null;
+      }
+    })();
+
+    return this.reconnectPromise;
+  }
+
+  async connect(): Promise<string> {
+    const accounts = this.wallet.isConnected
+      ? this.wallet.connector?.accounts ?? []
+      : await this.wallet.connect();
+
+    const address = accounts[0];
+    if (!address) throw new Error("Pera Wallet did not return an account.");
+
+    this.address = address;
+    this.ready = true;
+    this.notify();
+    return address;
+  }
+
+  async disconnect(): Promise<void> {
+    await this.wallet.disconnect();
+    this.address = null;
+    this.ready = true;
+    this.notify();
+  }
+
+  getSnapshot(): WalletSnapshot {
+    return this.snapshot();
+  }
+
+  subscribe(listener: WalletListener): () => void {
+    this.listeners.add(listener);
+    listener(this.snapshot());
+    return () => this.listeners.delete(listener);
+  }
+
+  async signTransactions(unsignedTransactions: string[]): Promise<string[]> {
+    if (!this.address) throw new Error("Connect Pera Wallet before signing.");
+    if (!unsignedTransactions.length) throw new Error("No transactions were prepared for signing.");
+
+    const transactionGroup = unsignedTransactions.map((encoded) => ({
+      txn: algosdk.decodeUnsignedTransaction(decodeBase64(encoded)),
+      signers: [this.address as string],
+    }));
+
+    const signedTransactions = await this.wallet.signTransaction([transactionGroup]);
+    return signedTransactions.map(encodeBase64);
   }
 }
 
 export const peraWalletService = new PeraWalletService();
-export default peraWalletService;
