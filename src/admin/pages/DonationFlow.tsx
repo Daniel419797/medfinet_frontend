@@ -1,15 +1,20 @@
 import { FormEvent, useCallback, useContext, useEffect, useState } from "react";
 import { CheckCircle, HandCoins, Wallet } from "@phosphor-icons/react";
+import AlgorandNetworkSelector from "../../components/blockchain/AlgorandNetworkSelector";
 import BlockchainFeatureGate from "../../components/blockchain/BlockchainFeatureGate";
 import WalletStatusButton from "../../components/wallet/WalletStatusButton";
 import { useBlockchain } from "../../contexts/BlockchainContext";
 import UserContext from "../../contexts/UserContext";
+import {
+  type AlgorandNetwork,
+} from "../../services/medfinetBlockchainApi";
 import { medfinetDonationApi } from "../../services/medfinetDonationApi";
 
 type DonationStep = "form" | "preparing" | "review" | "signing" | "done";
 
 type PreparedDonation = {
   donationId: string;
+  network: AlgorandNetwork;
   unsignedTransactions: string[];
   transactionHash: string;
   campaign: { title: string; escrowAddress: string };
@@ -26,6 +31,7 @@ function DonationWorkspace() {
   const { organizationId } = useContext(UserContext);
   const {
     health,
+    selectedNetwork,
     walletAddress,
     walletConnecting,
     connectWallet,
@@ -42,15 +48,28 @@ function DonationWorkspace() {
   const loadDonations = useCallback(async () => {
     if (!organizationId || !campaignId) return;
     try {
-      setDonations(await medfinetDonationApi.listForCampaign(organizationId, campaignId));
+      setDonations(
+        await medfinetDonationApi.listForCampaign(
+          organizationId,
+          campaignId,
+          selectedNetwork,
+        ),
+      );
     } catch {
       setDonations([]);
     }
-  }, [campaignId, organizationId]);
+  }, [campaignId, organizationId, selectedNetwork]);
 
   useEffect(() => {
     void loadDonations();
   }, [loadDonations]);
+
+  useEffect(() => {
+    setPrepared(null);
+    setTxHash("");
+    setError(null);
+    setStep("form");
+  }, [selectedNetwork]);
 
   async function handlePrepare(event: FormEvent) {
     event.preventDefault();
@@ -60,11 +79,15 @@ function DonationWorkspace() {
     setError(null);
     try {
       const donorWallet = walletAddress || (await connectWallet());
-      const result = await medfinetDonationApi.prepare(organizationId, {
-        campaignId,
-        amount: Number(amount),
-        donorWallet,
-      });
+      const result = await medfinetDonationApi.prepare(
+        organizationId,
+        selectedNetwork,
+        {
+          campaignId,
+          amount: Number(amount),
+          donorWallet,
+        },
+      );
       setPrepared(result);
       setStep("review");
     } catch (reason) {
@@ -78,11 +101,19 @@ function DonationWorkspace() {
     setStep("signing");
     setError(null);
     try {
-      const signedTransaction = await signTransactions(prepared.unsignedTransactions);
-      const result = await medfinetDonationApi.confirm(organizationId, {
-        donationId: prepared.donationId,
-        signedTransaction,
-      });
+      const signedTransaction = await signTransactions(
+        prepared.unsignedTransactions,
+        prepared.network,
+      );
+      const result = await medfinetDonationApi.confirm(
+        organizationId,
+        prepared.network,
+        {
+          donationId: prepared.donationId,
+          signedTransaction,
+          network: prepared.network,
+        },
+      );
       setTxHash(result.transactionHash);
       setStep("done");
       await loadDonations();
@@ -103,7 +134,7 @@ function DonationWorkspace() {
 
   return (
     <main className="mx-auto max-w-4xl space-y-6">
-      <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+      <header className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
         <div className="flex items-start gap-3">
           <span className="grid h-11 w-11 place-items-center bg-cyan-50 text-cyan-700">
             <HandCoins size={24} />
@@ -111,16 +142,25 @@ function DonationWorkspace() {
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-cyan-700">Algorand donations</p>
             <h1 className="mt-1 text-2xl font-extrabold">Donate with Pera Wallet</h1>
-            <p className="mt-1 text-sm text-slate-600">Prepare a grouped transaction, approve it in Pera, and let Medfinet submit it.</p>
+            <p className="mt-1 text-sm text-slate-600">Choose the network, prepare a grouped transaction, and approve it in Pera.</p>
           </div>
         </div>
-        <WalletStatusButton />
+        <div className="flex flex-wrap items-center gap-2">
+          <AlgorandNetworkSelector />
+          <WalletStatusButton />
+        </div>
       </header>
+
+      {selectedNetwork === "mainnet" && (
+        <div className="border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-950">
+          MainNet is active. Donations use real ALGO and cannot be reversed.
+        </div>
+      )}
 
       <div className="grid gap-4 border-y border-slate-200 py-4 sm:grid-cols-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Network</p>
-          <p className="mt-1 text-sm font-bold">{health?.network || "Algorand"}</p>
+          <p className="mt-1 text-sm font-bold">{health?.network || selectedNetwork}</p>
         </div>
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Wallet</p>
@@ -148,12 +188,12 @@ function DonationWorkspace() {
           </div>
           <button type="submit" disabled={!campaignId || !amount || walletConnecting} className={`${primary} mt-5`}>
             <Wallet size={18} />
-            {walletAddress ? "Prepare donation" : walletConnecting ? "Connecting…" : "Connect Pera and continue"}
+            {walletAddress ? `Prepare ${selectedNetwork} donation` : walletConnecting ? "Connecting…" : "Connect Pera and continue"}
           </button>
         </form>
       )}
 
-      {step === "preparing" && <div className="border border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-600">Preparing a secure grouped transaction…</div>}
+      {step === "preparing" && <div className="border border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-600">Preparing a secure grouped transaction on {selectedNetwork}…</div>}
 
       {(step === "review" || step === "signing") && prepared && (
         <section className="border border-slate-200 bg-white p-5">
@@ -161,6 +201,7 @@ function DonationWorkspace() {
           <h2 className="mt-2 text-xl font-extrabold">{prepared.campaign.title}</h2>
           <dl className="mt-5 grid gap-4 border-y border-slate-200 py-4 sm:grid-cols-2">
             <div><dt className="text-xs font-bold text-slate-400">Amount</dt><dd className="mt-1 font-bold">{amount} ALGO</dd></div>
+            <div><dt className="text-xs font-bold text-slate-400">Network</dt><dd className="mt-1 font-bold capitalize">{prepared.network}</dd></div>
             <div><dt className="text-xs font-bold text-slate-400">Transactions</dt><dd className="mt-1 font-bold">{prepared.unsignedTransactions.length} grouped approvals</dd></div>
             <div><dt className="text-xs font-bold text-slate-400">Escrow</dt><dd className="mt-1 break-all text-xs font-semibold">{prepared.campaign.escrowAddress}</dd></div>
             <div><dt className="text-xs font-bold text-slate-400">Wallet</dt><dd className="mt-1 break-all text-xs font-semibold">{walletAddress}</dd></div>
@@ -175,6 +216,7 @@ function DonationWorkspace() {
         <section className="border border-emerald-200 bg-emerald-50 p-6 text-emerald-950">
           <CheckCircle size={30} weight="fill" />
           <h2 className="mt-3 text-xl font-extrabold">Donation confirmed</h2>
+          <p className="mt-2 text-sm capitalize">Network: {prepared?.network}</p>
           <p className="mt-2 break-all text-sm">Transaction: <code>{txHash}</code></p>
           <button type="button" onClick={reset} className={`${primary} mt-5`}>Make another donation</button>
         </section>
