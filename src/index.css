@@ -67,6 +67,15 @@
   td { @apply text-sm text-slate-700 dark:text-slate-200; }
 }
 
+/*
+ * Pera Connect ships its modal at z-index 10. Medfinet's authenticated
+ * dashboard uses higher stacking layers for navigation, menus and dialogs,
+ * which can leave the wallet drawer open but hidden behind the application.
+ */
+.pera-wallet-modal {
+  z-index: 2147483647 !important;
+}
+
 @layer components {
   .mf-page {
     @apply mx-auto w-full max-w-[1500px] space-y-6;
