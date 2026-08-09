@@ -156,3 +156,70 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Approved landing hero composition */
+main > section:first-of-type > div {
+  max-width: 1280px !important;
+  grid-template-columns: minmax(0, .78fr) minmax(0, 1.22fr) !important;
+  gap: 2.25rem !important;
+  padding-top: 2.25rem !important;
+  padding-bottom: 2.25rem !important;
+}
+
+main > section:first-of-type h1 {
+  font-size: 0 !important;
+  line-height: 1 !important;
+  max-width: 520px !important;
+}
+
+main > section:first-of-type h1::before {
+  content: "One identity.\A Every record.\A Continuity through disruption.";
+  white-space: pre-line;
+  display: block;
+  font-size: clamp(2.8rem, 4.1vw, 4.35rem);
+  line-height: 1.03;
+  letter-spacing: -0.052em;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+main > section:first-of-type h1::after {
+  content: "Continuity through disruption.";
+  display: none;
+}
+
+main > section:first-of-type > div > div:nth-child(2) {
+  margin-right: -4.5rem !important;
+}
+
+main > section:first-of-type > div > div:nth-child(2) > div:nth-child(2) {
+  min-height: 430px;
+  border-radius: 42% 5% 28% 13% / 24% 8% 24% 16% !important;
+  background: url('/images/medfinet-hero-approved.svg') center / cover no-repeat !important;
+  box-shadow: 0 28px 80px rgba(15, 23, 42, .13) !important;
+}
+
+main > section:first-of-type > div > div:nth-child(2) > div:nth-child(2) img {
+  opacity: 0 !important;
+}
+
+main > section:first-of-type > div > div:nth-child(2) > div:last-child {
+  right: 1.75rem !important;
+  bottom: 1.5rem !important;
+  width: 300px !important;
+  padding: .9rem 1rem !important;
+}
+
+@media (max-width: 767px) {
+  main > section:first-of-type > div {
+    grid-template-columns: 1fr !important;
+  }
+
+  main > section:first-of-type > div > div:nth-child(2) {
+    margin-right: 0 !important;
+  }
+
+  main > section:first-of-type > div > div:nth-child(2) > div:nth-child(2) {
+    min-height: 330px;
+  }
+}
