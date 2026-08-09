@@ -1,5 +1,5 @@
-import { FormEvent, useContext, useEffect, useState } from 'react';
-import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2, ShieldAlert, Syringe } from 'lucide-react';
+import { FormEvent, useContext, useEffect, useRef, useState } from 'react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, Download, Loader2, ShieldAlert, Syringe, X } from 'lucide-react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { medfinetClinicalApi } from '../../services/medfinetClinicalApi';
 import UserContext from '../../contexts/UserContext';
@@ -26,23 +26,106 @@ export function NfcClinicalRecordPage() {
   const { childId = '' } = useParams();
   const [timeline, setTimeline] = useState<Timeline | null>(null);
   const [error, setError] = useState('');
+  const [certificateDownloadId, setCertificateDownloadId] = useState<string | null>(null);
+  const [certificateError, setCertificateError] = useState('');
+  const [certificatePreview, setCertificatePreview] = useState<{
+    url: string;
+    filename: string;
+    label: string;
+  } | null>(null);
+  const certificatePreviewUrl = useRef<string | null>(null);
+  const certificatePageMounted = useRef(true);
   useEffect(() => {
     if (!organizationId) return;
     medfinetClinicalApi.getClinicalTimeline(organizationId, childId)
       .then(setTimeline)
       .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : 'Could not load clinical record'));
   }, [childId, organizationId]);
+
+  useEffect(() => {
+    certificatePageMounted.current = true;
+    return () => {
+      certificatePageMounted.current = false;
+      if (certificatePreviewUrl.current) URL.revokeObjectURL(certificatePreviewUrl.current);
+    };
+  }, []);
+
+  function closeCertificatePreview() {
+    if (certificatePreviewUrl.current) URL.revokeObjectURL(certificatePreviewUrl.current);
+    certificatePreviewUrl.current = null;
+    setCertificatePreview(null);
+  }
+
+  async function viewCertificate(immunization: Timeline['immunizations'][number]) {
+    if (!organizationId) return;
+    setCertificateDownloadId(immunization.id);
+    setCertificateError('');
+    try {
+      const { blob, filename } = await medfinetClinicalApi.downloadImmunizationCertificate(
+        organizationId,
+        childId,
+        immunization.id,
+      );
+      const url = URL.createObjectURL(blob);
+      if (!certificatePageMounted.current) {
+        URL.revokeObjectURL(url);
+        return;
+      }
+      closeCertificatePreview();
+      certificatePreviewUrl.current = url;
+      setCertificatePreview({
+        url,
+        filename: filename || 'vaccination-certificate.png',
+        label: `${immunization.vaccineCode} dose ${immunization.doseNumber}`,
+      });
+    } catch (caught) {
+      if (certificatePageMounted.current) {
+        setCertificateError(
+          caught instanceof Error
+            ? caught.message
+            : 'Could not load the vaccination certificate',
+        );
+      }
+    } finally {
+      if (certificatePageMounted.current) setCertificateDownloadId(null);
+    }
+  }
+
   return (
-    <WorkflowShell title="Clinical record">
+    <WorkflowShell title="Vaccinations and certificates">
       {error && <p role="alert" className="rounded-xl border border-rose-300 bg-rose-50 p-4 text-rose-900">{error}</p>}
+      {certificateError && <p role="alert" className="mb-4 rounded-xl border border-rose-300 bg-rose-50 p-4 text-rose-900">{certificateError}</p>}
       {!timeline && !error && <Loader2 className="animate-spin text-cyan-700" />}
       {timeline && (
         <div className="grid gap-5 md:grid-cols-2">
           <section className="rounded-2xl border border-slate-200 bg-white p-5">
             <h2 className="text-lg font-bold">Immunizations</h2>
             <div className="mt-3 divide-y divide-slate-100">
-              {timeline.immunizations.map((item) => <div key={item.id} className="flex justify-between py-3 text-sm"><span>{item.vaccineCode} · Dose {item.doseNumber}</span><time className="text-slate-500">{new Date(item.administeredAt).toLocaleDateString()}</time></div>)}
-              {!timeline.immunizations.length && <p className="py-4 text-sm text-slate-500">No immunizations recorded.</p>}
+              {timeline.immunizations.map((item) => (
+                <div key={item.id} className="py-3 text-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="font-semibold text-slate-900">{item.vaccineCode} · Dose {item.doseNumber}</span>
+                    <time className="shrink-0 text-slate-500">{new Date(item.administeredAt).toLocaleDateString()}</time>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void viewCertificate(item)}
+                    disabled={certificateDownloadId !== null}
+                    className="mt-3 inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 font-bold text-emerald-800 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {certificateDownloadId === item.id
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Download className="h-4 w-4" />}
+                    {certificateDownloadId === item.id ? 'Loading certificate…' : 'View certificate'}
+                  </button>
+                </div>
+              ))}
+              {!timeline.immunizations.length && (
+                <div className="py-4 text-sm text-slate-500">
+                  <p className="font-semibold text-slate-700">No immunizations recorded.</p>
+                  <p className="mt-1">A certificate becomes available after a vaccination dose is recorded.</p>
+                </div>
+              )}
             </div>
           </section>
           <section className="rounded-2xl border border-slate-200 bg-white p-5">
@@ -57,6 +140,36 @@ export function NfcClinicalRecordPage() {
             <h2 className="text-lg font-bold">Growth and appointments</h2>
             <p className="mt-2 text-sm text-slate-600">{timeline.growth.length} growth measurements · {timeline.appointments.length} appointments</p>
           </section>
+          {certificatePreview && (
+            <section className="rounded-2xl border border-emerald-200 bg-white p-4 md:col-span-2 sm:p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-bold">Vaccination certificate</h2>
+                  <p className="mt-1 text-sm text-slate-600">{certificatePreview.label}</p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Close certificate preview"
+                  onClick={closeCertificatePreview}
+                  className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <img
+                src={certificatePreview.url}
+                alt={`Vaccination certificate for ${certificatePreview.label}`}
+                className="mx-auto mt-4 max-h-[70vh] w-auto rounded-xl border border-slate-200 shadow-sm"
+              />
+              <a
+                href={certificatePreview.url}
+                download={certificatePreview.filename}
+                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 font-semibold text-white hover:bg-emerald-800"
+              >
+                <Download className="h-5 w-5" /> Download PNG
+              </a>
+            </section>
+          )}
         </div>
       )}
     </WorkflowShell>
