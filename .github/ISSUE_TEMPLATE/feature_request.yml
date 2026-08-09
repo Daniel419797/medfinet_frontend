@@ -1,0 +1,47 @@
+name: Feature request
+description: Propose an improvement to the Medfinet frontend
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Explain the user problem before proposing an implementation. Features involving clinical workflows, personal data, identity, payments or blockchain signing require explicit safety and privacy analysis.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and pull requests.
+          required: true
+        - label: I have not included real patient data or secrets.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Who experiences the problem, and in what context?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed outcome
+      description: Describe the desired behaviour rather than only the preferred implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Safety, privacy and accessibility
+      description: Explain relevant risks, authorization boundaries, clinical implications and accessibility needs.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Supporting evidence
+      description: Link public standards, research, designs or related issues where applicable.

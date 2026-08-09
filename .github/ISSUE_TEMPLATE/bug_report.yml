@@ -1,0 +1,56 @@
+name: Bug report
+description: Report a reproducible problem in the Medfinet frontend
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug. Do not include real patient data, credentials, private wallet material or vulnerability details. Security issues must follow SECURITY.md.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and pull requests.
+          required: true
+        - label: I used synthetic or de-identified data only.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the problem and the expected behaviour.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: input
+    id: route
+    attributes:
+      label: Page or route
+      placeholder: /admin/blockchain
+  - type: input
+    id: version
+    attributes:
+      label: Commit, branch or deployment
+  - type: textarea
+    id: environment
+    attributes:
+      label: Browser and device
+      description: Include browser version, operating system and device type.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Remove tokens, addresses that should remain private and all personal data.
+      render: shell
