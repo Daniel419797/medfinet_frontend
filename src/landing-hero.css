@@ -1,0 +1,93 @@
+/* Landing page hero alignment to the approved Medfinet concept. */
+
+main > section:first-of-type {
+  isolation: isolate;
+}
+
+main > section:first-of-type > div {
+  min-height: 520px;
+}
+
+main > section:first-of-type > div > div:last-child {
+  align-self: stretch;
+  min-height: 430px;
+}
+
+main > section:first-of-type > div > div:last-child > div:first-child {
+  left: -2.25rem;
+  width: 12rem;
+  height: 12rem;
+  background: rgba(16, 185, 129, 0.72);
+  filter: blur(0.2px);
+}
+
+main > section:first-of-type > div > div:last-child > div:nth-child(2) {
+  height: 100%;
+  min-height: 430px;
+  border-radius: 42% 2.5rem 22% 12% / 20% 2.5rem 30% 16%;
+  background-image: url("https://sante-education.tg/img/Doctor_2.jpg");
+  background-size: cover;
+  background-position: center 40%;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.16);
+}
+
+main > section:first-of-type > div > div:last-child > div:nth-child(2)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(255,255,255,.08), transparent 28%, transparent 78%, rgba(15,23,42,.05));
+}
+
+main > section:first-of-type > div > div:last-child > div:nth-child(2) img {
+  opacity: 0;
+}
+
+main > section:first-of-type > div > div:last-child > div:last-child {
+  right: 1.75rem;
+  bottom: 1.6rem;
+  left: auto;
+  width: min(18rem, calc(100% - 2.5rem));
+  padding: 0.9rem 1rem;
+  border-radius: 0.9rem;
+}
+
+@media (min-width: 768px) {
+  main > section:first-of-type > div {
+    grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+    column-gap: 2rem;
+    padding-top: 3.25rem;
+    padding-bottom: 3.25rem;
+  }
+
+  main > section:first-of-type h1 {
+    max-width: 470px;
+    font-size: clamp(3rem, 4.15vw, 4rem);
+    line-height: 0.99;
+  }
+
+  main > section:first-of-type p {
+    max-width: 470px;
+  }
+}
+
+@media (max-width: 767px) {
+  main > section:first-of-type > div {
+    min-height: auto;
+  }
+
+  main > section:first-of-type > div > div:last-child {
+    min-height: 350px;
+  }
+
+  main > section:first-of-type > div > div:last-child > div:nth-child(2) {
+    min-height: 350px;
+    border-radius: 2rem 2rem 4rem 2rem;
+    background-position: center;
+  }
+
+  main > section:first-of-type > div > div:last-child > div:first-child {
+    display: none;
+  }
+}

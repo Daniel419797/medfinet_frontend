@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import "@fontsource-variable/manrope";
 import "./index.css";
+import "./landing-hero.css";
 
 function renderStartupFailure() {
   const root = document.getElementById("root");
