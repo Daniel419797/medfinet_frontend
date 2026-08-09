@@ -29,6 +29,7 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { Link } from "react-router-dom";
+import { InstallMedfinetButton } from "../../components/pwa/InstallMedfinetButton";
 
 const capabilities = [
   [Fingerprint, "Identity integrity", "Create and resolve child records, link caregivers and preserve a controlled identity history.", "blue"],
@@ -109,7 +110,7 @@ function Hero() {
         <span className="mfl-eyebrow">PRE-PRODUCTION CHILD-HEALTH CONTINUITY PLATFORM</span>
         <h1>Protect children.<br />Connect care.<br />Keep programme action<br /><em>accountable.</em></h1>
         <p>Medfinet connects child identity, caregiver relationships, clinical records and authorised programme operations in one governed platform designed for fragmented and low-connectivity environments.</p>
-        <div className="mfl-hero-actions"><a className="mfl-button" href="#pilot">Request pilot access <ArrowRight weight="bold" /></a><a className="mfl-button mfl-button-outline" href="#product">Explore the platform <PlayCircle weight="fill" /></a></div>
+        <div className="mfl-hero-actions"><a className="mfl-button" href="#pilot">Request pilot access <ArrowRight weight="bold" /></a><a className="mfl-button mfl-button-outline" href="#product">Explore the platform <PlayCircle weight="fill" /></a><InstallMedfinetButton className="mfl-button mfl-button-outline" /></div>
         <ul className="mfl-hero-facts"><li><WifiSlash /> Offline-aware workflows</li><li><IdentificationCard /> NFC-assisted identification</li><li><ArrowsClockwise /> Controlled synchronisation</li><li><LockKey /> Role-scoped access</li></ul>
       </div>
       <div className="mfl-hero-visual"><img src="/images/landing/hero-mother-child.webp" alt="A mother holding her child during a clinic visit" /><div className="mfl-hero-status"><ShieldCheck weight="duotone" /><div><strong>Medfinet in context</strong><span>Identity. Care continuity.<br />Governed programme action.</span></div></div></div>

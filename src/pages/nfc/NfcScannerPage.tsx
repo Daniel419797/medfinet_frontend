@@ -1,7 +1,8 @@
-import { FormEvent, useContext, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
+  Clock3,
   CloudOff,
   CreditCard,
   FileHeart,
@@ -14,18 +15,26 @@ import {
   Syringe,
   Wifi,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { medfinetNfcApi } from '../../services/medfinetNfcApi';
+import { Link, useLocation } from 'react-router-dom';
+import { medfinetNfcApi, type NfcScanResult } from '../../services/medfinetNfcApi';
 import UserContext from '../../contexts/UserContext';
+import { InstallMedfinetButton } from '../../components/pwa/InstallMedfinetButton';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import {
+  cacheOfflineNfcSnapshot,
+  resolveOfflineNfcSnapshot,
+  type OfflineNfcSnapshot,
+} from '../../services/nfcOfflineStore';
 import {
   devicePublicKeyPem,
   scannerPayload,
   signNfcPayload,
   stableDeviceIdentifier,
 } from '../../services/nfcDeviceKeyStore';
+import { rememberOfflineDevice } from '../../services/offlineSyncService';
+import { isMedfinetConnectivityError } from '../../services/medfinetApiClient';
 
 type ScanInput = { publicId: string; cardToken: string; uc: string };
-type ScanResult = Awaited<ReturnType<typeof medfinetNfcApi.resolveScan>>;
 
 type NdefRecord = { recordType: string; data?: DataView };
 type NdefEvent = Event & {
@@ -59,16 +68,33 @@ function normalizeReaderUid(serialNumber: string): string {
   return uid;
 }
 
-function ClinicalResult({ result }: { result: ScanResult }) {
+function ClinicalResult({
+  result,
+  offlineSnapshot,
+  pwaSurface,
+}: {
+  result: NfcScanResult;
+  offlineSnapshot: OfflineNfcSnapshot | null;
+  pwaSurface: boolean;
+}) {
   const due = result.clinicalSummary.vaccination.dueCount;
   const overdue = result.clinicalSummary.vaccination.overdueCount;
   const clinicalAllowed = result.clinicalSummary.clinicalAccess === 'ALLOWED';
+  const childBase = pwaSurface ? '/nfc/children' : '/health-worker/nfc/children';
+  const offlinePath = pwaSurface ? '/nfc/offline' : '/health-worker/offline';
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <div className="border-b border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-semibold text-emerald-800">
-        <CheckCircle2 className="mr-2 inline h-4 w-4" /> Card read successfully
+      <div className={`border-b px-5 py-3 text-sm font-semibold ${offlineSnapshot ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>
+        {offlineSnapshot ? <CloudOff className="mr-2 inline h-4 w-4" /> : <CheckCircle2 className="mr-2 inline h-4 w-4" />}
+        {offlineSnapshot ? 'Encrypted offline snapshot matched' : 'Card verified online successfully'}
       </div>
       <div className="space-y-5 p-5">
+        {offlineSnapshot ? (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+            <p className="flex items-center gap-2 font-semibold"><Clock3 size={18} />Last verified {new Date(offlineSnapshot.resolvedAt).toLocaleString()}</p>
+            <p className="mt-1 leading-6">This bounded snapshot expires {new Date(offlineSnapshot.expiresAt).toLocaleString()}. Reconnect to check current consent, card status and clinical changes.</p>
+          </div>
+        ) : null}
         <div>
           <h2 className="text-2xl font-bold text-slate-950">
             {clinicalAllowed
@@ -109,19 +135,32 @@ function ClinicalResult({ result }: { result: ScanResult }) {
             Clinical details are hidden because no applicable active consent was found. Record or verify consent before routine care, or use the audited emergency workflow when clinically justified.
           </div>
         )}
-        <div className={`grid gap-3 ${clinicalAllowed ? 'sm:grid-cols-3' : ''}`}>
-          {clinicalAllowed && <Link to={`/health-worker/nfc/children/${result.child.id}/clinical`} className="nfc-action">
-            <FileHeart size={18} /> View clinical record
-          </Link>}
-          {clinicalAllowed && <Link to={`/health-worker/nfc/children/${result.child.id}/vaccination`} className="nfc-action nfc-action-primary">
-            <Syringe size={18} /> Record vaccination
-          </Link>}
-          <Link to={`/health-worker/nfc/children/${result.child.id}/emergency`} className="nfc-action nfc-action-danger">
-            <LockKeyhole size={18} /> Emergency access
-          </Link>
-        </div>
+        {offlineSnapshot ? (
+          clinicalAllowed ? (
+            <Link
+              to={`${offlinePath}?type=CLINICAL.IMMUNIZATION_RECORD&childId=${encodeURIComponent(result.child.id)}`}
+              className="nfc-action nfc-action-primary"
+            >
+              <Syringe size={18} /> Queue vaccination offline
+            </Link>
+          ) : null
+        ) : (
+          <div className={`grid gap-3 ${clinicalAllowed ? 'sm:grid-cols-3' : ''}`}>
+            {clinicalAllowed ? <Link to={`${childBase}/${result.child.id}/clinical`} className="nfc-action">
+              <FileHeart size={18} /> View clinical record
+            </Link> : null}
+            {clinicalAllowed ? <Link to={`${childBase}/${result.child.id}/vaccination`} className="nfc-action nfc-action-primary">
+              <Syringe size={18} /> Record vaccination
+            </Link> : null}
+            <Link to={`${childBase}/${result.child.id}/emergency`} className="nfc-action nfc-action-danger">
+              <LockKeyhole size={18} /> Emergency access
+            </Link>
+          </div>
+        )}
         <p className="text-xs leading-5 text-slate-500">
-          PWA assurance: the worker and browser key are authenticated, but Web NFC cannot run the NTAG215 READ_SIG command. Every access remains permission checked and audited.
+          {offlineSnapshot
+            ? 'Offline assurance: the encrypted snapshot, signed-in worker, organization, registered browser, card token, hardware UID and monotonic counter all matched. New permissions or revocations cannot be checked until reconnection.'
+            : 'PWA assurance: the worker and browser key are authenticated, but Web NFC cannot run the NTAG215 READ_SIG command. Every online access remains permission checked and audited.'}
         </p>
       </div>
     </section>
@@ -129,31 +168,29 @@ function ClinicalResult({ result }: { result: ScanResult }) {
 }
 
 export default function NfcScannerPage() {
-  const { organizationId } = useContext(UserContext);
+  const { organizationId, user } = useContext(UserContext);
+  const location = useLocation();
+  const pwaSurface = location.pathname.startsWith('/nfc/');
   const [deviceId, setDeviceId] = useState(() => localStorage.getItem('medfinet.nfc.device-record-id') || '');
   const [manualUrl, setManualUrl] = useState('');
   const [listening, setListening] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [result, setResult] = useState<ScanResult | null>(null);
+  const [result, setResult] = useState<NfcScanResult | null>(null);
+  const [offlineSnapshot, setOfflineSnapshot] = useState<OfflineNfcSnapshot | null>(null);
+  const [offlineCacheWarning, setOfflineCacheWarning] = useState('');
   const [recentScans, setRecentScans] = useState<Array<{
     childId: string;
     label: string;
     medfinetId: string;
     scannedAt: Date;
+    offline: boolean;
   }>>([]);
-  const [online, setOnline] = useState(navigator.onLine);
+  const scanController = useRef<AbortController | null>(null);
+  const online = useOnlineStatus();
   const webNfcSupported = useMemo(() => 'NDEFReader' in window, []);
 
-  useEffect(() => {
-    const update = () => setOnline(navigator.onLine);
-    window.addEventListener('online', update);
-    window.addEventListener('offline', update);
-    return () => {
-      window.removeEventListener('online', update);
-      window.removeEventListener('offline', update);
-    };
-  }, []);
+  useEffect(() => () => scanController.current?.abort(), []);
 
   async function registerDevice() {
     if (!organizationId) throw new Error('Select an organization first.');
@@ -165,40 +202,92 @@ export default function NfcScannerPage() {
       publicKey: await devicePublicKeyPem(),
     });
     localStorage.setItem('medfinet.nfc.device-record-id', registration.device.id);
+    rememberOfflineDevice(organizationId, registration.device.id);
     setDeviceId(registration.device.id);
+    return registration.device.id;
+  }
+
+  function rememberScan(resolved: NfcScanResult, offline: boolean) {
+    setRecentScans((current) => [{
+      childId: resolved.child.id,
+      label: resolved.clinicalSummary.clinicalAccess === 'ALLOWED'
+        ? `${resolved.child.firstName} ${resolved.child.lastName}`
+        : 'Identity redacted',
+      medfinetId: resolved.clinicalSummary.clinicalAccess === 'ALLOWED'
+        ? resolved.child.medfinetId || ''
+        : 'Consent required',
+      scannedAt: new Date(),
+      offline,
+    }, ...current.filter(({ childId }) => childId !== resolved.child.id)].slice(0, 5));
   }
 
   async function resolveCard(card: ScanInput) {
-    if (!online) throw new Error('Connect to the internet to resolve this card securely. Card credentials are never stored offline.');
+    if (!organizationId || !user) {
+      throw new Error('Restore your authorized organization session before scanning.');
+    }
     setBusy(true);
     setError('');
     setResult(null);
+    setOfflineSnapshot(null);
+    setOfflineCacheWarning('');
     try {
       let activeDeviceId = deviceId;
-      if (!activeDeviceId) {
-        await registerDevice();
-        activeDeviceId = localStorage.getItem('medfinet.nfc.device-record-id') || '';
+      if (!online) {
+        if (!activeDeviceId) {
+          throw new Error('This browser must be registered online before it can resolve cards offline.');
+        }
+        const snapshot = await resolveOfflineNfcSnapshot({
+          organizationId,
+          subjectId: user.id,
+          deviceId: activeDeviceId,
+          card,
+        });
+        setResult(snapshot.result);
+        setOfflineSnapshot(snapshot);
+        rememberScan(snapshot.result, true);
+        return;
       }
-      const challenge = await medfinetNfcApi.createChallenge(card.publicId, activeDeviceId);
-      const payload = scannerPayload({ ...card, challengeToken: challenge.challengeToken });
-      const deviceSignature = await signNfcPayload(payload);
-      const resolved = await medfinetNfcApi.resolveScan({
-        ...card,
-        challengeToken: challenge.challengeToken,
-        deviceSignature,
-        scanMode: 'PWA_NDEF',
-      });
-      setResult(resolved);
-      setRecentScans((current) => [{
-        childId: resolved.child.id,
-        label: resolved.clinicalSummary.clinicalAccess === 'ALLOWED'
-          ? `${resolved.child.firstName} ${resolved.child.lastName}`
-          : 'Identity redacted',
-        medfinetId: resolved.clinicalSummary.clinicalAccess === 'ALLOWED'
-          ? resolved.child.medfinetId || ''
-          : 'Consent required',
-        scannedAt: new Date(),
-      }, ...current.filter(({ childId }) => childId !== resolved.child.id)].slice(0, 5));
+
+      if (!activeDeviceId) {
+        activeDeviceId = await registerDevice();
+      }
+      try {
+        const challenge = await medfinetNfcApi.createChallenge(card.publicId, activeDeviceId);
+        const payload = scannerPayload({ ...card, challengeToken: challenge.challengeToken });
+        const deviceSignature = await signNfcPayload(payload);
+        const resolved = await medfinetNfcApi.resolveScan({
+          ...card,
+          challengeToken: challenge.challengeToken,
+          deviceSignature,
+          scanMode: 'PWA_NDEF',
+        });
+        setResult(resolved);
+        rememberScan(resolved, false);
+        try {
+          await cacheOfflineNfcSnapshot({
+            organizationId,
+            subjectId: user.id,
+            deviceId: activeDeviceId,
+            card,
+            result: resolved,
+          });
+        } catch (cacheError) {
+          console.warn('Unable to prepare this card for offline resolution', cacheError);
+          setOfflineCacheWarning('The card was verified, but this browser could not encrypt an offline snapshot. Keep the device online until storage is available.');
+        }
+      } catch (onlineError) {
+        if (!isMedfinetConnectivityError(onlineError)) throw onlineError;
+        const snapshot = await resolveOfflineNfcSnapshot({
+          organizationId,
+          subjectId: user.id,
+          deviceId: activeDeviceId,
+          card,
+        });
+        setResult(snapshot.result);
+        setOfflineSnapshot(snapshot);
+        setOfflineCacheWarning('Live verification was unavailable, so Medfinet used the matching encrypted offline snapshot.');
+        rememberScan(snapshot.result, true);
+      }
     } finally {
       setBusy(false);
     }
@@ -213,28 +302,35 @@ export default function NfcScannerPage() {
     try {
       const Reader = (window as unknown as { NDEFReader: NdefReaderConstructor }).NDEFReader;
       const reader = new Reader();
-      await reader.scan();
+      scanController.current?.abort();
+      const controller = new AbortController();
+      scanController.current = controller;
+      await reader.scan({ signal: controller.signal });
       setListening(true);
       reader.addEventListener('reading', (event) => {
-        const record = event.message.records.find(({ recordType }) => recordType === 'url');
-        if (!record?.data) {
-          setError('The NFC tag does not contain a Medfinet URL record.');
-          return;
-        }
-        const raw = new TextDecoder().decode(new Uint8Array(
-          record.data.buffer,
-          record.data.byteOffset,
-          record.data.byteLength
-        ));
-        const card = parseCardUrl(raw);
-        const readerUid = normalizeReaderUid(event.serialNumber);
-        if (card.uc.slice(0, 14).toUpperCase() !== readerUid) {
-          setError('The NDEF mirror does not match the physical NFC chip UID.');
-          return;
-        }
-        void resolveCard(card).catch((caught: unknown) => {
+        try {
+          const record = event.message.records.find(({ recordType }) => recordType === 'url');
+          if (!record?.data) {
+            setError('The NFC tag does not contain a Medfinet URL record.');
+            return;
+          }
+          const raw = new TextDecoder().decode(new Uint8Array(
+            record.data.buffer,
+            record.data.byteOffset,
+            record.data.byteLength
+          ));
+          const card = parseCardUrl(raw);
+          const readerUid = normalizeReaderUid(event.serialNumber);
+          if (card.uc.slice(0, 14).toUpperCase() !== readerUid) {
+            setError('The NDEF mirror does not match the physical NFC chip UID.');
+            return;
+          }
+          void resolveCard(card).catch((caught: unknown) => {
+            setError(caught instanceof Error ? caught.message : 'Card scan failed');
+          });
+        } catch (caught) {
           setError(caught instanceof Error ? caught.message : 'Card scan failed');
-        });
+        }
       });
     } catch (caught) {
       setListening(false);
@@ -244,32 +340,41 @@ export default function NfcScannerPage() {
 
   function submitManual(event: FormEvent) {
     event.preventDefault();
-    void resolveCard(parseCardUrl(manualUrl.trim())).catch((caught: unknown) => {
+    setError('');
+    try {
+      const card = parseCardUrl(manualUrl.trim());
+      void resolveCard(card).catch((caught: unknown) => {
+        setError(caught instanceof Error ? caught.message : 'Card scan failed');
+      });
+    } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Card scan failed');
-    });
+    }
   }
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-950">
       <header className="border-b border-slate-200 bg-white px-4 py-4 sm:px-6">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-xl font-bold">NFC Card Operations</h1>
             <p className="text-sm text-slate-500">Scan and manage child identity cards</p>
           </div>
-          <div className="flex items-center gap-2 text-sm font-medium">
-            {online ? <Wifi className="text-emerald-600" size={17} /> : <CloudOff className="text-amber-600" size={17} />}
-            {online ? 'Online' : 'Offline'}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              {online ? <Wifi className="text-emerald-600" size={17} /> : <CloudOff className="text-amber-600" size={17} />}
+              {online ? 'Online' : 'Offline'}
+            </div>
+            <InstallMedfinetButton className="inline-flex items-center gap-2 rounded-xl border border-cyan-700 px-3 py-2 text-sm font-semibold text-cyan-800 hover:bg-cyan-50" />
           </div>
         </div>
       </header>
 
       <div className="mx-auto grid max-w-7xl gap-5 p-4 sm:p-6 lg:grid-cols-[minmax(320px,0.85fr)_minmax(0,1.25fr)]">
         <section className="space-y-4">
-          <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5"><div><p className="text-sm font-semibold text-slate-700">Trusted scanner device</p><p className="text-xs text-slate-500">{deviceId ? `Registered as ${deviceId}` : 'Register this browser before scanning'}</p></div><button type="button" onClick={() => void registerDevice().catch((caught: unknown) => setError(caught instanceof Error ? caught.message : 'Registration failed'))} className="rounded-xl border border-slate-300 px-3 py-2 font-semibold text-slate-700">{deviceId ? <ShieldCheck size={19} /> : 'Register'}</button></div>
+          <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5"><div><p className="text-sm font-semibold text-slate-700">Trusted scanner device</p><p className="text-xs text-slate-500">{deviceId ? `Registered as ${deviceId}` : 'Register this browser before scanning'}</p></div><button type="button" disabled={!online || busy || !organizationId} aria-label={deviceId ? 'Refresh device registration' : 'Register this browser'} title={!online ? 'Reconnect before registering this browser' : undefined} onClick={() => void registerDevice().catch((caught: unknown) => setError(caught instanceof Error ? caught.message : 'Registration failed'))} className="rounded-xl border border-slate-300 px-3 py-2 font-semibold text-slate-700 disabled:opacity-50">{deviceId ? <ShieldCheck aria-hidden="true" size={19} /> : 'Register'}</button></div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center">
-            <button type="button" disabled={busy || !organizationId} onClick={() => void startScan()} className="mx-auto grid h-36 w-36 place-items-center rounded-full border-2 border-cyan-200 bg-cyan-50 text-cyan-800 transition hover:scale-[1.02] disabled:opacity-50">
+            <button type="button" disabled={busy || listening || !organizationId} aria-label={busy ? 'Resolving NFC card' : listening ? 'NFC scanner ready' : 'Start NFC scanner'} onClick={() => void startScan()} className="mx-auto grid h-36 w-36 place-items-center rounded-full border-2 border-cyan-200 bg-cyan-50 text-cyan-800 transition hover:scale-[1.02] disabled:opacity-50">
               {busy ? <Loader2 className="animate-spin" size={40} /> : <Smartphone size={42} />}
             </button>
             <h2 className="mt-5 text-2xl font-bold">Tap NFC card</h2>
@@ -299,7 +404,7 @@ export default function NfcScannerPage() {
                 {recentScans.map((scan) => (
                   <div key={scan.childId} className="flex w-full items-center justify-between gap-3 py-3 text-left text-sm">
                     <span><strong className="block">{scan.label}</strong><span className="text-slate-500">{scan.medfinetId}</span></span>
-                    <time className="text-xs text-slate-500">{scan.scannedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>
+                    <span className="text-right"><time className="block text-xs text-slate-500">{scan.scannedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>{scan.offline ? <span className="text-[11px] font-semibold text-amber-700">Offline</span> : null}</span>
                   </div>
                 ))}
               </div>
@@ -309,17 +414,18 @@ export default function NfcScannerPage() {
         </section>
 
         <section className="space-y-4">
-          {error && <div role="alert" className="flex gap-3 rounded-2xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-900"><AlertTriangle className="shrink-0" size={20} /><div><strong>Card unavailable</strong><p className="mt-1">{error}</p></div></div>}
-          {result ? <ClinicalResult result={result} /> : (
+          {error ? <div role="alert" className="flex gap-3 rounded-2xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-900"><AlertTriangle className="shrink-0" size={20} /><div><strong>Card unavailable</strong><p className="mt-1">{error}</p></div></div> : null}
+          {offlineCacheWarning ? <div role="status" className="flex gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"><AlertTriangle className="shrink-0" size={20} /><p>{offlineCacheWarning}</p></div> : null}
+          {result ? <ClinicalResult result={result} offlineSnapshot={offlineSnapshot} pwaSurface={pwaSurface} /> : (
             <div className="grid min-h-[420px] place-items-center rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
               <div><History className="mx-auto text-slate-300" size={48} /><h2 className="mt-4 text-lg font-semibold">Clinical access</h2><p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">The authorized child summary will appear here after a secure card scan.</p></div>
             </div>
           )}
-          <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 text-sm">
+          <Link to={pwaSurface ? '/nfc/offline' : '/health-worker/offline'} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm transition hover:border-cyan-300 hover:bg-cyan-50/30">
             <span className="flex items-center gap-2 font-semibold"><CloudOff size={18} /> Offline queue</span>
-            <span className="text-slate-500">Card secrets are never stored offline</span>
+            <span className="text-slate-500">Encrypted operations sync automatically on reconnect</span>
             <RefreshCw size={17} className="text-slate-400" />
-          </div>
+          </Link>
         </section>
       </div>
     </main>

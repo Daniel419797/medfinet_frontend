@@ -1,32 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MedfinetApiError, medfinetRequest } from "./medfinetApiClient";
 
-const storage = new Map<string, string>();
-const storageMock = {
-  getItem: vi.fn((key: string) => storage.get(key) ?? null),
-  setItem: vi.fn((key: string, value: string) => {
-    storage.set(key, value);
-  }),
-  removeItem: vi.fn((key: string) => {
-    storage.delete(key);
-  }),
-  clear: vi.fn(() => {
-    storage.clear();
-  }),
-};
+const auth = vi.hoisted(() => ({
+  getSession: vi.fn(),
+  signOut: vi.fn(),
+}));
+
+vi.mock("./supabaseClient", () => ({ supabase: { auth } }));
 
 describe("medfinetRequest", () => {
   beforeEach(() => {
     vi.stubEnv("VITE_MEDFINET_API_URL", "https://api.example.test/api/v1/");
-    vi.stubGlobal("localStorage", storageMock);
-    vi.stubGlobal("window", { ...window, localStorage: storageMock });
-    storageMock.setItem("medfinet_auth_token", "session-token");
+    auth.getSession.mockResolvedValue({
+      data: { session: { access_token: "session-token" } },
+      error: null,
+    });
+    auth.signOut.mockResolvedValue({ error: null });
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
-    storage.clear();
   });
 
   it("sends the verified session, tenant, purpose, and JSON body", async () => {
@@ -61,7 +55,10 @@ describe("medfinetRequest", () => {
   });
 
   it("fails closed before making a request when the session is absent", async () => {
-    localStorage.removeItem("medfinet_auth_token");
+    auth.getSession.mockResolvedValue({
+      data: { session: null },
+      error: null,
+    });
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -93,6 +90,6 @@ describe("medfinetRequest", () => {
       code: "TOKEN_EXPIRED",
       requestId: "request-123",
     });
-    expect(localStorage.getItem("medfinet_auth_token")).toBeNull();
+    expect(auth.signOut).toHaveBeenCalledTimes(1);
   });
 });

@@ -48,5 +48,7 @@ Contributions must preserve these properties:
 - one organization must not be able to read or mutate another organization's data;
 - real clinical records and secrets must never be committed or used in tests;
 - every `VITE_` value is treated as public;
+- offline NFC snapshots must remain encrypted, short-lived, subject/organization/device bound, consent-filtered and visibly non-authoritative;
+- background synchronization must reuse the active Supabase session and must not duplicate bearer or refresh tokens into service-worker storage;
 - signing requests must clearly identify the selected blockchain network and require explicit wallet approval;
 - security and privacy failures should fail closed and remain visible to the user.

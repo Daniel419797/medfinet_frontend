@@ -35,10 +35,10 @@ Caregiver child, appointment, timeline, reward-account, and privacy queries are 
 | ---------------------- | ---------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | Worker overview        | `/health-worker/dashboard`                                 | Child, appointment, worklist, notification queries | Operational counts and live workflow links                                                              |
 | Clinical operations    | `/health-worker/clinical`                                  | Child search and all clinical lifecycle endpoints  | Immunization, growth, alerts, allergies, appointments, amendments and status transitions                |
-| NFC scanner            | `/health-worker/nfc`, `/nfc/scanner`                       | NFC challenge/resolve endpoints                    | Web NFC/manual read, registered-device attestation, safe resolution                                     |
+| NFC scanner            | `/health-worker/nfc`, `/nfc/scanner`                       | NFC challenge/resolve endpoints                    | Web NFC/manual development read, registered-device attestation, online resolution and bounded encrypted offline snapshots |
 | NFC child workflows    | `/health-worker/nfc/children/:id/*`, `/nfc/children/:id/*` | Clinical, vaccination, emergency endpoints         | Minimum-necessary record, vaccination recording and emergency workflow                                  |
 | Climate response       | `/health-worker/climate`                                   | Worklist, delivery and referral endpoints          | Serve entries, create referrals and progress response work                                              |
-| Encrypted offline sync | `/health-worker/offline`                                   | Device and sync-batch endpoints                    | Register/select device, encrypt local queue, submit supported operation types, inspect conflicts/status |
+| Encrypted offline sync | `/health-worker/offline`, `/nfc/offline`                   | Device and sync-batch endpoints                    | Select the local approved device, encrypt local queue, automatically submit idempotently on reconnect, inspect conflicts/status |
 
 ## Organization administration
 
