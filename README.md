@@ -4,6 +4,10 @@ Medfinet is a pre-production child-health continuity platform. This repository c
 
 The frontend communicates with the Medfinet backend API and uses Supabase for authentication. PostgreSQL behind the backend remains the system of record; the browser is not treated as an authoritative clinical database.
 
+## Project status
+
+Medfinet is open-source pre-production software. It is not a medical device, clinical decision system or substitute for qualified medical judgement. A successful build or deployment does not establish clinical approval, regulatory compliance, production readiness, hardware compatibility or live-provider availability.
+
 ## Current implementation
 
 The active application includes:
@@ -17,8 +21,6 @@ The active application includes:
 - NFC credential provisioning, public tap validation and authenticated scanner flows
 - encrypted browser queues for a bounded set of offline operations
 - administration for memberships, facilities, programmes, governance, localization, integrations, devices and audit evidence
-
-Implementation in this repository does not by itself establish clinical approval, production readiness, hardware compatibility or live-provider availability.
 
 ## Validation still required
 
@@ -92,10 +94,24 @@ npm run check
 
 ## Deployment
 
-The repository currently reports successful Vercel deployment checks. Deployment configuration must provide the three required public environment variables listed above and must route SPA paths back to `index.html`.
+Deployment configuration must provide the three required public environment variables listed above and must route SPA paths back to `index.html`.
 
-A successful build or deployment does not constitute production or clinical sign-off.
+## Contributing
+
+Contributions are welcome. Read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening an issue or pull request. Participation is governed by the [Code of Conduct](./CODE_OF_CONDUCT.md), and project decisions follow [GOVERNANCE.md](./GOVERNANCE.md).
+
+Use synthetic or de-identified data only. Never include real patient records, credentials, private wallet material or confidential partner information in issues, tests, screenshots or pull requests.
+
+## Security
+
+Do not report vulnerabilities in public issues. Follow [SECURITY.md](./SECURITY.md) for private reporting instructions and the project's security boundaries.
+
+## Release readiness
+
+Maintainers should use [OPEN_SOURCE_RELEASE_CHECKLIST.md](./OPEN_SOURCE_RELEASE_CHECKLIST.md) before publishing the first tagged release or any material public release.
 
 ## License
 
-No open-source license is currently included. The repository should be treated as proprietary unless a license is added by the owner.
+Copyright 2026 Daniel Praise and Medfinet contributors.
+
+Licensed under the [Apache License 2.0](./LICENSE). Third-party dependencies and assets remain subject to their respective licences. The licence does not grant permission to use the Medfinet name or logos for branding beyond reasonable reference to the origin of the software; see [NOTICE](./NOTICE).
