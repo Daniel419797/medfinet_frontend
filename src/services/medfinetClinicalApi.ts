@@ -1,4 +1,7 @@
-import { medfinetRequest as request } from './medfinetApiClient';
+import {
+  medfinetDownload as download,
+  medfinetRequest as request,
+} from './medfinetApiClient';
 
 export const medfinetClinicalApi = {
   // Timeline
@@ -29,6 +32,15 @@ export const medfinetClinicalApi = {
     return request(`/immunizations/${encodeURIComponent(immunizationId)}`, {
       method: 'PATCH', body, organizationId: orgId, purpose: 'immunization-amendment',
     });
+  },
+  downloadImmunizationCertificate(orgId: string, childId: string, immunizationId: string) {
+    return download(
+      `/children/${encodeURIComponent(childId)}/immunizations/${encodeURIComponent(immunizationId)}/certificate`,
+      {
+        organizationId: orgId,
+        purpose: 'vaccination-certificate-download',
+      },
+    );
   },
 
   // Growth Measurements

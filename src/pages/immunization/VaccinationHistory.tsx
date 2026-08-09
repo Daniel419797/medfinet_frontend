@@ -1,5 +1,5 @@
-import { useContext } from "react";
-import { Calendar, ChevronLeft, Shield } from "lucide-react";
+import { useContext, useState } from "react";
+import { Calendar, ChevronLeft, Download, Loader2, Shield } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { PageFeedback } from "../../components/common/PageFeedback";
 import UserContext from "../../contexts/UserContext";
@@ -10,6 +10,8 @@ import { medfinetIdentityApi } from "../../services/medfinetIdentityApi";
 export default function VaccinationHistory() {
   const { id } = useParams<{ id: string }>();
   const { organizationId } = useContext(UserContext);
+  const [certificateDownloadId, setCertificateDownloadId] = useState<string | null>(null);
+  const [certificateError, setCertificateError] = useState<string | null>(null);
   const validId = Boolean(id && id !== "all");
   const childRequest = useApi(
     () =>
@@ -30,6 +32,35 @@ export default function VaccinationHistory() {
   const error = !validId
     ? "Select a child profile to view its health record."
     : childRequest.error || timelineRequest.error;
+
+  const downloadCertificate = async (immunizationId: string) => {
+    if (!organizationId || !id) return;
+    setCertificateDownloadId(immunizationId);
+    setCertificateError(null);
+    try {
+      const { blob, filename } = await medfinetClinicalApi.downloadImmunizationCertificate(
+        organizationId,
+        id,
+        immunizationId,
+      );
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = filename || "vaccination-certificate.png";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
+    } catch (reason) {
+      setCertificateError(
+        reason instanceof Error
+          ? reason.message
+          : "Unable to download the vaccination certificate.",
+      );
+    } finally {
+      setCertificateDownloadId(null);
+    }
+  };
 
   return (
     <main className="space-y-6">
@@ -63,6 +94,14 @@ export default function VaccinationHistory() {
       >
         {child && (
           <>
+            {certificateError && (
+              <div
+                role="alert"
+                className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+              >
+                {certificateError}
+              </div>
+            )}
             <section className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="grid h-14 w-14 place-items-center rounded-full bg-cyan-50 font-bold text-cyan-800">
                 {child.firstName[0]}
@@ -102,6 +141,21 @@ export default function VaccinationHistory() {
                         <Calendar className="mr-1 inline h-4 w-4" />
                         {new Date(vaccination.administeredAt).toLocaleString()}
                       </p>
+                      <button
+                        type="button"
+                        onClick={() => void downloadCertificate(vaccination.id)}
+                        disabled={certificateDownloadId !== null}
+                        className="mt-4 inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {certificateDownloadId === vaccination.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4" />
+                        )}
+                        {certificateDownloadId === vaccination.id
+                          ? "Preparing certificate…"
+                          : "Download certificate"}
+                      </button>
                     </div>
                   </div>
                 </article>
