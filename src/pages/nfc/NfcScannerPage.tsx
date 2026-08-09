@@ -34,7 +34,12 @@ import {
 import { rememberOfflineDevice } from '../../services/offlineSyncService';
 import { isMedfinetConnectivityError } from '../../services/medfinetApiClient';
 
-type ScanInput = { publicId: string; cardToken: string; uc: string };
+type ScanInput = {
+  publicId: string;
+  cardToken: string;
+  uc: string;
+  scanMode: 'PWA_NDEF' | 'TAGWRITER_NDEF';
+};
 
 type NdefRecord = { recordType: string; data?: DataView };
 type NdefEvent = Event & {
@@ -54,10 +59,24 @@ function parseCardUrl(raw: string): ScanInput {
   const params = new URLSearchParams(url.hash.replace(/^#/, ''));
   const cardToken = params.get('t') || '';
   const uc = params.get('uc') || '';
-  if (!/^[A-Za-z0-9_-]{24}$/.test(publicId) || !/^[0-9A-F]{14}x[0-9A-F]{6}$/.test(uc) || !/^[A-Za-z0-9_-]{43}$/.test(cardToken)) {
+  const isMedfinetTapPath = pathParts.length >= 3
+    && pathParts[pathParts.length - 3] === 'nfc'
+    && pathParts[pathParts.length - 2] === 'tap';
+  const securePayload = /^[0-9A-F]{14}x[0-9A-F]{6}$/.test(uc);
+  if (
+    !isMedfinetTapPath
+    || !/^[A-Za-z0-9_-]{24}$/.test(publicId)
+    || (!securePayload && uc !== '')
+    || !/^[A-Za-z0-9_-]{43}$/.test(cardToken)
+  ) {
     throw new Error('This is not a valid Medfinet NTAG215 card payload.');
   }
-  return { publicId, cardToken, uc };
+  return {
+    publicId,
+    cardToken,
+    uc,
+    scanMode: securePayload ? 'PWA_NDEF' : 'TAGWRITER_NDEF',
+  };
 }
 
 function normalizeReaderUid(serialNumber: string): string {
@@ -157,11 +176,17 @@ function ClinicalResult({
             </Link>
           </div>
         )}
-        <p className="text-xs leading-5 text-slate-500">
-          {offlineSnapshot
-            ? 'Offline assurance: the encrypted snapshot, signed-in worker, organization, registered browser, card token, hardware UID and monotonic counter all matched. New permissions or revocations cannot be checked until reconnection.'
-            : 'PWA assurance: the worker and browser key are authenticated, but Web NFC cannot run the NTAG215 READ_SIG command. Every online access remains permission checked and audited.'}
-        </p>
+        {result.assurance === 'AUTHENTICATED_STATIC_NDEF_DEMO' ? (
+          <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+            TagWriter demo assurance: the worker and browser key are authenticated, but this static card link can be copied. Use this mode only for the demonstration; every record access remains permission checked and audited.
+          </p>
+        ) : (
+          <p className="text-xs leading-5 text-slate-500">
+            {offlineSnapshot
+              ? 'Offline assurance: the encrypted snapshot, signed-in worker, organization, registered browser, card token, hardware UID and monotonic counter all matched. New permissions or revocations cannot be checked until reconnection.'
+              : 'PWA assurance: the worker and browser key are authenticated, but Web NFC cannot run the NTAG215 READ_SIG command. Every online access remains permission checked and audited.'}
+          </p>
+        )}
       </div>
     </section>
   );
@@ -233,6 +258,9 @@ export default function NfcScannerPage() {
     try {
       let activeDeviceId = deviceId;
       if (!online) {
+        if (card.scanMode === 'TAGWRITER_NDEF') {
+          throw new Error('TagWriter demo cards require an internet connection because static links are not eligible for offline resolution.');
+        }
         if (!activeDeviceId) {
           throw new Error('This browser must be registered online before it can resolve cards offline.');
         }
@@ -259,11 +287,11 @@ export default function NfcScannerPage() {
           ...card,
           challengeToken: challenge.challengeToken,
           deviceSignature,
-          scanMode: 'PWA_NDEF',
         });
         setResult(resolved);
         rememberScan(resolved, false);
         try {
+          if (card.scanMode === 'TAGWRITER_NDEF') return;
           await cacheOfflineNfcSnapshot({
             organizationId,
             subjectId: user.id,
@@ -320,10 +348,12 @@ export default function NfcScannerPage() {
             record.data.byteLength
           ));
           const card = parseCardUrl(raw);
-          const readerUid = normalizeReaderUid(event.serialNumber);
-          if (card.uc.slice(0, 14).toUpperCase() !== readerUid) {
-            setError('The NDEF mirror does not match the physical NFC chip UID.');
-            return;
+          if (card.scanMode === 'PWA_NDEF') {
+            const readerUid = normalizeReaderUid(event.serialNumber);
+            if (card.uc.slice(0, 14).toUpperCase() !== readerUid) {
+              setError('The NDEF mirror does not match the physical NFC chip UID.');
+              return;
+            }
           }
           void resolveCard(card).catch((caught: unknown) => {
             setError(caught instanceof Error ? caught.message : 'Card scan failed');

@@ -54,6 +54,19 @@ export type NfcPreparation = {
   protection: NfcManifest['protection'];
 };
 
+export type NfcTagWriterCard = {
+  credential: { id: string; childId: string; kind: 'NFC'; status: string };
+  binding: {
+    id: string;
+    publicId: string;
+    hardwareFamily: 'NTAG_215_TAGWRITER_DEMO';
+    status: 'ACTIVE';
+  };
+  tagWriterUrl: string;
+  assurance: 'AUTHENTICATED_STATIC_NDEF_DEMO';
+  limitations: string[];
+};
+
 export type NfcScanResult = {
   assurance: string;
   child: {
@@ -108,6 +121,21 @@ export const medfinetNfcApi = {
     });
   },
 
+  createTagWriterDemo(
+    organizationId: string,
+    childId: string
+  ): Promise<NfcTagWriterCard> {
+    return request(
+      `/children/${encodeURIComponent(childId)}/nfc-bindings/tagwriter-demo`,
+      {
+        method: 'POST',
+        body: {},
+        organizationId,
+        purpose: 'tagwriter-demo-card-provisioning',
+      }
+    );
+  },
+
   prepare(
     organizationId: string,
     bindingId: string,
@@ -157,8 +185,9 @@ export const medfinetNfcApi = {
   verifyPublicTap(publicId: string, uc: string, token: string) {
     return request<{
       recognized: boolean;
-      status: 'ACTIVE' | 'REVOKED' | 'REPLACED' | 'EXPIRED';
-      assurance: 'BASIC_NDEF';
+      status: 'ACTIVE' | 'SUSPENDED' | 'REVOKED' | 'REPLACED' | 'EXPIRED';
+      hardwareFamily: 'NTAG_215' | 'NTAG_215_TAGWRITER_DEMO';
+      assurance: 'BASIC_NDEF' | 'BASIC_STATIC_NDEF_DEMO';
       scannerRequired: boolean;
       message: string;
     }>(
@@ -188,7 +217,7 @@ export const medfinetNfcApi = {
     cardToken: string;
     uc: string;
     originalitySignature?: string;
-    scanMode?: 'PWA_NDEF' | 'NATIVE_RAW';
+    scanMode?: 'PWA_NDEF' | 'TAGWRITER_NDEF' | 'NATIVE_RAW';
     deviceSignature: string;
   }) {
     return request<NfcScanResult>('/nfc/scans/resolve', {
@@ -266,6 +295,7 @@ export const medfinetNfcApi = {
     return request<Array<{
       id: string;
       publicId: string;
+      hardwareFamily: 'NTAG_215' | 'NTAG_215_TAGWRITER_DEMO';
       status: 'PENDING' | 'ACTIVE' | 'FAILED' | 'REVOKED';
       provisioningExpiresAt: string;
       createdAt: string;

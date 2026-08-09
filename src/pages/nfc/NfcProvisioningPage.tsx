@@ -4,6 +4,7 @@ import {
   medfinetNfcApi,
   NfcDraft,
   NfcPreparation,
+  type NfcTagWriterCard,
 } from "../../services/medfinetNfcApi";
 import UserContext from "../../contexts/UserContext";
 import { ActionReasonModal } from "../../components/common/ActionReasonModal";
@@ -84,6 +85,8 @@ export default function NfcProvisioningPage() {
   const [packResponseHex, setPackResponseHex] = useState("");
   const [activationSignature, setActivationSignature] = useState("");
   const [draft, setDraft] = useState<NfcDraft | null>(null);
+  const [tagWriterCard, setTagWriterCard] =
+    useState<NfcTagWriterCard | null>(null);
   const [preparation, setPreparation] = useState<NfcPreparation | null>(null);
   const [activated, setActivated] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -170,6 +173,18 @@ export default function NfcProvisioningPage() {
       setDraft(await medfinetNfcApi.createDraft(orgId, childId.trim()));
       setPreparation(null);
       setActivated(false);
+      await refreshLifecycle(orgId, childId.trim());
+    });
+  }
+
+  function createTagWriterCard(event: FormEvent) {
+    event.preventDefault();
+    const orgId = organizationId;
+    if (!orgId) return;
+    void run(async () => {
+      setTagWriterCard(
+        await medfinetNfcApi.createTagWriterDemo(orgId, childId.trim()),
+      );
       await refreshLifecycle(orgId, childId.trim());
     });
   }
@@ -300,6 +315,114 @@ export default function NfcProvisioningPage() {
           <span>{error}</span>
         </div>
       )}
+
+      <section className="mb-5 rounded-2xl border-2 border-cyan-300 bg-cyan-50/50 p-5 shadow-sm">
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-cyan-800">
+              Fast demo setup
+            </p>
+            <h2 className="mt-1 text-xl font-bold text-slate-950">
+              Connect a card with NXP TagWriter
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">
+              This creates a unique static URL for one child. The card stores no
+              name or medical information, and an authorized Medfinet worker
+              must still sign in before records are returned. Write or copy the
+              URL now; Medfinet stores only its hash and cannot display it again
+              after this page is refreshed.
+            </p>
+          </div>
+          <span className="w-fit rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900">
+            DEMO ONLY
+          </span>
+        </div>
+
+        <form
+          onSubmit={createTagWriterCard}
+          className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]"
+        >
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-slate-700">
+              Child to connect
+            </span>
+            <select
+              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm"
+              value={childId}
+              onChange={(event) => {
+                setChildId(event.target.value);
+                setTagWriterCard(null);
+              }}
+            >
+              <option value="">Select child</option>
+              {children.map((child) => (
+                <option key={child.id} value={child.id}>
+                  {child.firstName} {child.lastName} · {child.medfinetId}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            disabled={busy || !organizationId || !childId.trim()}
+            className="self-end rounded-xl bg-cyan-800 px-5 py-2.5 font-semibold text-white disabled:opacity-50"
+          >
+            Create TagWriter URL
+          </button>
+        </form>
+
+        {tagWriterCard && (
+          <div className="mt-5 rounded-xl border border-cyan-300 bg-white p-4">
+            <p className="text-sm font-bold text-slate-950">
+              Write this exact URL to the card
+            </p>
+            <code className="mt-2 block break-all rounded-lg bg-slate-950 p-3 text-xs text-cyan-100">
+              {tagWriterCard.tagWriterUrl}
+            </code>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  void navigator.clipboard.writeText(
+                    tagWriterCard.tagWriterUrl,
+                  )
+                }
+                className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white"
+              >
+                <Copy size={16} /> Copy URL
+              </button>
+              <a
+                href={tagWriterCard.tagWriterUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+              >
+                Test URL
+              </a>
+            </div>
+          </div>
+        )}
+
+        <ol className="mt-5 grid gap-3 text-sm text-slate-700 md:grid-cols-4">
+          <li className="rounded-xl bg-white p-3">
+            <strong className="block text-slate-950">1. Open TagWriter</strong>
+            Choose <em>Write tags</em>, then <em>New dataset</em>.
+          </li>
+          <li className="rounded-xl bg-white p-3">
+            <strong className="block text-slate-950">2. Add only a link</strong>
+            Choose <em>Link/Bookmark</em> and paste the generated URL.
+          </li>
+          <li className="rounded-xl bg-white p-3">
+            <strong className="block text-slate-950">3. Write the card</strong>
+            Do not add <em>Launch Application</em>. Tap <em>Write</em> and hold
+            the card still.
+          </li>
+          <li className="rounded-xl bg-white p-3">
+            <strong className="block text-slate-950">4. Test before locking</strong>
+            Tap with NFC enabled. Do not make the card read-only during the
+            first test.
+          </li>
+        </ol>
+      </section>
 
       <div className="grid gap-5 lg:grid-cols-3">
         <form
@@ -602,7 +725,10 @@ export default function NfcProvisioningPage() {
             >
               <div className="min-w-0">
                 <p className="font-semibold text-slate-950">
-                  {binding.status} card
+                  {binding.status}{" "}
+                  {binding.hardwareFamily === "NTAG_215_TAGWRITER_DEMO"
+                    ? "TagWriter demo card"
+                    : "protected card"}
                 </p>
                 <p className="truncate text-xs text-slate-500">
                   Public route {binding.publicId}
@@ -626,16 +752,19 @@ export default function NfcProvisioningPage() {
                 )}
                 {binding.status === "ACTIVE" && (
                   <>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() =>
-                        setLifecycleTarget({ binding, action: "replace" })
-                      }
-                      className="rounded-lg border border-cyan-300 bg-white px-3 py-2 text-sm font-semibold text-cyan-800"
-                    >
-                      Replace card
-                    </button>
+                    {binding.hardwareFamily !==
+                      "NTAG_215_TAGWRITER_DEMO" && (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() =>
+                          setLifecycleTarget({ binding, action: "replace" })
+                        }
+                        className="rounded-lg border border-cyan-300 bg-white px-3 py-2 text-sm font-semibold text-cyan-800"
+                      >
+                        Replace card
+                      </button>
+                    )}
                     <button
                       type="button"
                       disabled={busy}
