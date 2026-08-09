@@ -1,8 +1,8 @@
 **Source visual truth**
 
-- ChatGPT conversation attachment `file_000000009ed481f6a97816718b455ac1`, originally available as `upload/01-264933.png`.
+- ChatGPT conversation attachment `file_0000000088cc820cb32d5b0ef7c65362`, available as `/workspace/scratch/22e892b975ae/upload/01-264933.png`.
 - Source pixels: `727 × 1536`.
-- The source was opened and inspected before implementation. The temporary uploaded copy was later cleared by the workspace runtime.
+- The source was opened at original resolution for the requested desktop hero-silhouette refinement.
 
 **Implementation target**
 
@@ -20,6 +20,12 @@
   Evidence: the source visual was available, but the selected Cloud Browser blocked the local preview URL before rendering. No implementation screenshot could be placed beside the source image.
   Impact: visual fidelity, responsive layout, live interaction states, and browser console output cannot be certified under the required image-to-code QA workflow.
   Fix: allow the selected Cloud Browser to open the local Sites Preview, then capture the full landing page and compare it side-by-side with the source at a matched desktop viewport.
+
+- [P2] Desktop hero silhouette requires post-fix visual confirmation
+  Location: `.mfl-hero-visual` in `src/landing-hero.css`.
+  Evidence: the user reported that the previous desktop crop retained a regular rounded shape, while the reference uses a sinuous left edge with a wider lower curve. The implementation now applies a percentage-based curved `shape()` clip path with a dense `polygon()` fallback above `840px`, while preserving the existing mobile crop.
+  Impact: the requested reference-specific hero treatment cannot be accepted from source code alone.
+  Fix: capture the revised desktop hero in the selected Cloud Browser and compare its silhouette and subject crop directly with the reference hero.
 
 **Required fidelity surfaces**
 
@@ -49,6 +55,7 @@
 **Comparison history**
 
 - Pass 1: blocked before visual comparison. No visual implementation fixes were made from this pass because no browser-rendered evidence was available.
+- Pass 2: the user identified the regular desktop hero crop as a P2 fidelity mismatch. The fixed-radius desktop crop was replaced with an organic percentage-based clip path and the mobile crop was explicitly excluded. `npm run build` passed after the fix, but post-fix browser evidence remains unavailable because the selected Cloud Browser again returned `ERR_BLOCKED_BY_CLIENT` before rendering.
 
 **Implementation checklist**
 
