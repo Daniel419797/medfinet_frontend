@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MedfinetApiError, medfinetRequest } from "./medfinetApiClient";
+import {
+  MedfinetApiError,
+  medfinetDownload,
+  medfinetRequest,
+} from "./medfinetApiClient";
 
 const storage = new Map<string, string>();
 const storageMock = {
@@ -94,5 +98,34 @@ describe("medfinetRequest", () => {
       requestId: "request-123",
     });
     expect(localStorage.getItem("medfinet_auth_token")).toBeNull();
+  });
+
+  it("downloads a private certificate with the authenticated tenant context", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(new Blob(["png-data"], { type: "image/png" }), {
+        status: 200,
+        headers: {
+          "content-disposition": 'attachment; filename="child-certificate.png"',
+          "content-type": "image/png",
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await medfinetDownload("/certificate", {
+      organizationId: "org-1",
+      purpose: "vaccination-certificate-download",
+    });
+
+    expect(result.filename).toBe("child-certificate.png");
+    expect(result.blob.type).toBe("image/png");
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = init.headers as Headers;
+    expect(headers.get("authorization")).toBe("Bearer session-token");
+    expect(headers.get("x-organization-id")).toBe("org-1");
+    expect(headers.get("x-access-purpose")).toBe(
+      "vaccination-certificate-download",
+    );
+    expect(headers.has("content-type")).toBe(false);
   });
 });

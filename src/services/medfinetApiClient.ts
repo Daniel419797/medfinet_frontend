@@ -109,3 +109,65 @@ export async function medfinetRequest<T>(
 
   return payload.data;
 }
+
+export async function medfinetDownload(
+  path: string,
+  options: Omit<MedfinetRequestOptions, "body"> = {},
+): Promise<{ blob: Blob; filename?: string }> {
+  const headers = new Headers();
+
+  if (options.authenticated !== false) {
+    const token = await sessionAccessToken();
+    if (!token) {
+      throw new Error("Your secure session has expired. Sign in again.");
+    }
+    headers.set("authorization", `Bearer ${token}`);
+  }
+
+  if (options.organizationId) {
+    headers.set("x-organization-id", options.organizationId);
+  }
+  headers.set("x-access-purpose", options.purpose || "medfinet-operation");
+  Object.entries(options.headers || {}).forEach(([name, value]) => {
+    headers.set(name, value);
+  });
+
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 20_000);
+  let response: Response;
+  try {
+    response = await fetch(`${apiBaseUrl()}${path}`, {
+      method: options.method || "GET",
+      headers,
+      signal: controller.signal,
+      cache: "no-store",
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("The Medfinet service did not respond in time.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({
+      code: "INVALID_API_RESPONSE",
+      message: "The server returned an unreadable response",
+    }))) as Partial<ApiEnvelope<never>>;
+    if (response.status === 401) {
+      await supabase.auth.signOut().catch(() => undefined);
+    }
+    throw new MedfinetApiError(
+      payload.message || payload.code || "Medfinet download failed",
+      response.status,
+      payload.code || "MEDFINET_DOWNLOAD_FAILED",
+      response.headers.get("x-request-id") || undefined,
+    );
+  }
+
+  const disposition = response.headers.get("content-disposition") || "";
+  const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1];
+  return { blob: await response.blob(), filename };
+}
