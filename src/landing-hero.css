@@ -1,93 +1,40 @@
-/* Landing page hero alignment to the approved Medfinet concept. */
-
-main > section:first-of-type {
-  isolation: isolate;
+.medfinet-landing {
+  --navy:#10243e; --slate:#526477; --green:#087d55; --green-dark:#056643;
+  --ice:#f4f9fd; --line:#dce7ef;
+  min-height:100vh; overflow:hidden; background:#fff; color:var(--navy);
+  font-family:"Manrope Variable","Manrope",Arial,sans-serif;
 }
+.medfinet-landing *{box-sizing:border-box}.medfinet-landing img{display:block;max-width:100%}
+.medfinet-landing a{color:inherit;text-decoration:none}.medfinet-landing p,.medfinet-landing h1,.medfinet-landing h2,.medfinet-landing h3,.medfinet-landing h4{margin:0}
+.mfl-shell{width:min(1240px,calc(100% - 48px));margin-inline:auto}
+.mfl-sr-only{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 
-main > section:first-of-type > div {
-  min-height: 520px;
-}
+.mfl-header{position:sticky;top:0;z-index:50;height:76px;border-bottom:1px solid #e6edf2;background:rgba(255,255,255,.97)}
+.mfl-header-inner{display:grid;grid-template-columns:230px minmax(0,1fr) auto;align-items:center;gap:32px;height:100%}
+.mfl-brand{display:inline-flex;align-items:center;gap:10px;width:max-content}.mfl-brand-mark{display:grid;width:42px;height:46px;place-items:center;color:var(--green)}.mfl-brand-mark svg{width:40px;height:40px}.mfl-brand-copy{display:flex;flex-direction:column;line-height:1.05}.mfl-brand-copy strong{color:var(--navy);font-size:20px;font-weight:800;letter-spacing:-.045em}.mfl-brand-copy small{margin-top:4px;color:#4c5f72;font-size:8px;font-weight:650}
+.mfl-nav{display:flex;align-items:center;justify-content:center;gap:25px;font-size:12px;font-weight:750}.mfl-nav>a,.mfl-nav-group>summary{padding-block:27px;white-space:nowrap;cursor:pointer}.mfl-nav>a:hover,.mfl-nav-group>summary:hover,.mfl-nav>.is-active{color:var(--green)}
+.mfl-nav-group{position:relative}.mfl-nav-group>summary{display:flex;align-items:center;gap:5px;list-style:none}.mfl-nav-group>summary::-webkit-details-marker{display:none}.mfl-nav-group>summary svg{width:12px;height:12px}.mfl-nav-popover{position:absolute;top:62px;left:-18px;min-width:210px;padding:8px;border:1px solid var(--line);border-radius:11px;background:#fff;box-shadow:0 18px 45px rgba(16,36,62,.13)}.mfl-nav-popover a{display:block;padding:10px 12px;border-radius:7px;color:var(--slate)}.mfl-nav-popover a:hover{color:var(--green);background:#e8f7f1}
+.mfl-header-actions{display:flex;align-items:center;gap:6px}.mfl-sign-in{padding:10px 8px;color:#3c5063;font-size:11px;font-weight:800}.mfl-menu-toggle{display:none;width:38px;height:38px;place-items:center;border:0;background:transparent;color:var(--navy)}.mfl-menu-toggle svg{width:26px;height:26px}
+.mfl-button{display:inline-flex;min-height:46px;align-items:center;justify-content:center;gap:10px;padding:0 20px;border:1px solid var(--green);border-radius:6px;background:var(--green);color:#fff!important;font-size:12px;font-weight:800;line-height:1;transition:background .18s ease,transform .18s ease}.mfl-button:hover{transform:translateY(-2px);background:var(--green-dark)}.mfl-button svg{width:15px;height:15px}.mfl-button-small{min-height:40px;padding-inline:16px;font-size:11px}.mfl-button-outline{border-color:#b9d7ca;background:#fff;color:var(--green)!important}.mfl-button-outline:hover{color:#fff!important}.mfl-text-button{display:inline-flex;min-height:36px;align-items:center;gap:8px;padding:0 13px;border:1px solid #b9d8cc;border-radius:5px;color:var(--green)!important;font-size:10px;font-weight:800}.mfl-text-button svg{width:13px;height:13px}.mfl-eyebrow{display:inline-block;color:#2284b5;font-size:9px;font-weight:850;letter-spacing:.075em;text-transform:uppercase}
 
-main > section:first-of-type > div > div:last-child {
-  align-self: stretch;
-  min-height: 430px;
-}
+.mfl-hero{overflow:hidden;background:#fff}.mfl-hero-grid{display:grid;min-height:548px;grid-template-columns:46% 54%;align-items:stretch}.mfl-hero-copy{position:relative;z-index:2;align-self:center;padding:54px 38px 24px 0}.medfinet-landing .mfl-hero-copy h1{max-width:600px;margin:18px 0 20px;color:var(--navy);font-size:clamp(40px,4.1vw,64px);font-weight:830;line-height:1.055;letter-spacing:-.057em}.mfl-hero-copy h1 em{color:var(--green);font-style:normal}.mfl-hero-copy>p{max-width:535px;color:#46596d;font-size:14px;line-height:1.7}.mfl-hero-actions{display:flex;gap:15px;margin-top:26px}.mfl-hero-facts{display:flex;flex-wrap:wrap;gap:14px 22px;padding:0;margin:29px 0 0;color:#42566a;font-size:9px;font-weight:700;list-style:none}.mfl-hero-facts li{display:inline-flex;align-items:center;gap:6px}.mfl-hero-facts svg{width:15px;height:15px;color:var(--green)}
+.mfl-hero-visual{position:relative;min-height:548px;margin-right:calc((100vw - min(1240px,calc(100vw - 48px)))/-2);overflow:hidden;border-radius:125px 0 0 125px;background:#dcebf3}.mfl-hero-visual>img{width:100%;height:100%;min-height:548px;object-fit:cover;object-position:48% center}.mfl-hero-status{position:absolute;bottom:26px;left:24%;display:flex;min-width:350px;align-items:center;gap:14px;padding:16px 20px;border:1px solid rgba(220,231,239,.96);border-radius:11px;background:rgba(255,255,255,.95);box-shadow:0 12px 34px rgba(16,36,62,.12)}.mfl-hero-status>svg{width:42px;height:42px;flex:0 0 auto;color:var(--green)}.mfl-hero-status div{display:flex;flex-direction:column;gap:3px}.mfl-hero-status strong{font-size:12px}.mfl-hero-status span{color:#536477;font-size:10px;line-height:1.45}
 
-main > section:first-of-type > div > div:last-child > div:first-child {
-  left: -2.25rem;
-  width: 12rem;
-  height: 12rem;
-  background: rgba(16, 185, 129, 0.72);
-  filter: blur(0.2px);
-}
+.mfl-capabilities{padding:38px 0 64px;background:#fff}.mfl-capability-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:13px}.mfl-capability-card{min-height:186px;padding:24px 14px 17px;border:1px solid #eaf0f4;border-radius:11px;background:#f8fbfd;text-align:center}.mfl-icon-disc{display:grid;width:52px;height:52px;margin:0 auto 16px;place-items:center;border-radius:50%}.mfl-icon-disc svg{width:25px;height:25px}.mfl-icon-disc.blue,.mfl-mini-icon.blue{color:#287ec7;background:#e8f4ff}.mfl-icon-disc.green,.mfl-mini-icon.green{color:#15956d;background:#e7f7f0}.mfl-icon-disc.orange,.mfl-mini-icon.orange{color:#dc7937;background:#fff1e7}.mfl-icon-disc.purple,.mfl-mini-icon.purple{color:#7a55bd;background:#f2ebff}.mfl-icon-disc.teal,.mfl-mini-icon.teal{color:#298e86;background:#e7f7f5}.mfl-icon-disc.gold,.mfl-mini-icon.gold{color:#b8841c;background:#fff6df}.medfinet-landing .mfl-capability-card h2{margin-bottom:8px;color:var(--navy);font-size:12px;font-weight:800;line-height:1.25}.mfl-capability-card p{color:#4f6174;font-size:9px;line-height:1.55}
 
-main > section:first-of-type > div > div:last-child > div:nth-child(2) {
-  height: 100%;
-  min-height: 430px;
-  border-radius: 42% 2.5rem 22% 12% / 20% 2.5rem 30% 16%;
-  background-image: url("https://sante-education.tg/img/Doctor_2.jpg");
-  background-size: cover;
-  background-position: center 40%;
-  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.16);
-}
+.mfl-about{padding:0 0 68px;background:#fff}.mfl-about-grid{display:grid;grid-template-columns:42% 58%;align-items:stretch}.mfl-about-copy{padding:14px 62px 27px 0}.medfinet-landing .mfl-about-copy h2,.medfinet-landing .mfl-section-heading h2,.medfinet-landing .mfl-product-copy h2,.medfinet-landing .mfl-pilot-intro h2,.medfinet-landing .mfl-resource-heading h2{color:var(--navy);font-weight:820;line-height:1.13;letter-spacing:-.045em}.medfinet-landing .mfl-about-copy h2{max-width:450px;margin:12px 0 14px;font-size:32px}.mfl-about-copy>p{color:#526376;font-size:11px;line-height:1.62}.mfl-check-list{padding:0;margin:18px 0 22px;list-style:none}.mfl-check-list li{display:flex;align-items:flex-start;gap:8px;margin:8px 0;color:#354a5e;font-size:10px;line-height:1.45}.mfl-check-list svg{width:15px;height:15px;flex:0 0 auto;margin-top:1px;color:#48aa84}.mfl-reality{padding:35px 41px 28px;border-radius:10px;background:var(--ice)}.medfinet-landing .mfl-reality>h3{margin-bottom:23px;font-size:19px;font-weight:800;text-align:center}.mfl-problem-grid{display:grid;grid-template-columns:1fr 1fr}.mfl-problem-grid article{display:flex;min-height:105px;align-items:flex-start;gap:14px;padding:16px 20px;border-top:1px solid #dce7ef}.mfl-problem-grid article:nth-child(-n+2){border-top:0}.mfl-problem-grid article:nth-child(even){border-left:1px solid #dce7ef}.mfl-mini-icon{display:grid;width:29px;height:29px;flex:0 0 auto;place-items:center;border-radius:50%}.mfl-mini-icon svg{width:16px;height:16px}.medfinet-landing .mfl-problem-grid h4{margin:2px 0 6px;font-size:11px;font-weight:800}.mfl-problem-grid p{color:#5b6c7e;font-size:9px;line-height:1.45}
 
-main > section:first-of-type > div > div:last-child > div:nth-child(2)::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background: linear-gradient(90deg, rgba(255,255,255,.08), transparent 28%, transparent 78%, rgba(15,23,42,.05));
-}
+.mfl-roles{padding:51px 0 60px;background:#f5fbff}.mfl-section-heading{margin-bottom:26px;text-align:center}.medfinet-landing .mfl-section-heading h2{margin-top:9px;font-size:34px}.mfl-section-heading h2 span{color:#53687d;font-weight:600}.mfl-role-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:15px}.mfl-role-card{overflow:hidden;border:1px solid #dfeaf0;border-radius:8px;background:#fff;box-shadow:0 7px 24px rgba(33,70,97,.06)}.mfl-role-card>img{width:100%;aspect-ratio:1.58;object-fit:cover;background:#e8f0f5}.mfl-role-card>div{padding:13px 14px 16px}.medfinet-landing .mfl-role-card h3{display:flex;align-items:center;gap:7px;margin-bottom:9px;font-size:12px;font-weight:800}.mfl-role-card h3 .mfl-mini-icon{width:23px;height:23px}.mfl-role-card h3 svg{width:13px;height:13px}.mfl-role-card p{min-height:65px;margin-bottom:13px;color:#4f6174;font-size:9px;line-height:1.55}.mfl-role-card a,.mfl-resource-card a{display:inline-flex;align-items:center;gap:5px;color:#2385b8;font-size:9px;font-weight:800}.mfl-role-card a svg,.mfl-resource-card a svg{width:11px;height:11px}
 
-main > section:first-of-type > div > div:last-child > div:nth-child(2) img {
-  opacity: 0;
-}
+.mfl-workflow{padding:55px 0 64px;background:#fff}.mfl-section-heading.compact{margin-bottom:31px}.medfinet-landing .mfl-section-heading.compact h2{font-size:28px}.mfl-steps{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));padding:0;margin:0;list-style:none}.mfl-steps li{position:relative;padding-inline:15px;text-align:center}.mfl-steps li:not(:last-child)::after{position:absolute;top:40px;left:72%;width:58%;border-top:1px dashed #60a2c7;content:""}.mfl-step-number{position:absolute;top:32px;left:8%;z-index:2;display:grid;width:22px;height:22px;place-items:center;border-radius:50%;background:#2785bd;color:#fff;font-size:9px;font-weight:850}.mfl-step-icon{display:grid;width:82px;height:82px;margin:0 auto 15px;place-items:center;border:1px solid #dcecf6;border-radius:50%;background:#eef7fd;color:#2b83bb}.mfl-step-icon svg{width:39px;height:39px}.medfinet-landing .mfl-steps h3{margin-bottom:7px;font-size:12px;font-weight:800}.mfl-steps p{max-width:180px;margin-inline:auto;color:#586a7c;font-size:9px;line-height:1.5}
 
-main > section:first-of-type > div > div:last-child > div:last-child {
-  right: 1.75rem;
-  bottom: 1.6rem;
-  left: auto;
-  width: min(18rem, calc(100% - 2.5rem));
-  padding: 0.9rem 1rem;
-  border-radius: 0.9rem;
-}
+.mfl-product{padding:51px 0 70px;background:#f6fbff}.mfl-product-grid{display:grid;grid-template-columns:56% 44%;align-items:center;gap:48px}.mfl-product-visual img{width:100%;max-height:450px;object-fit:contain}.medfinet-landing .mfl-product-copy h2{margin:12px 0 13px;font-size:35px}.mfl-product-copy>p{max-width:500px;color:#516376;font-size:11px;line-height:1.62}.mfl-product-copy .mfl-check-list{margin:17px 0 23px}
+.mfl-pilot{padding:28px 0 39px;background:#fff}.mfl-pilot-panel{display:grid;min-height:250px;grid-template-columns:48% 52%;align-items:center;overflow:hidden;border-radius:34px 34px 11px 11px;background:#eaf6fc}.mfl-pilot-intro{display:grid;height:100%;grid-template-columns:41% 59%;align-items:center}.mfl-pilot-intro img{width:100%;height:100%;object-fit:cover;object-position:center 18%}.mfl-pilot-intro>div{padding:22px 26px 20px 17px}.medfinet-landing .mfl-pilot-intro h2{margin-bottom:11px;font-size:25px}.mfl-pilot-intro p{color:#4b5f73;font-size:10px;line-height:1.55}.mfl-pilot-form{display:grid;grid-template-columns:1fr 1fr;gap:10px 13px;padding:27px 31px}.mfl-pilot-form label{display:grid;gap:5px;color:#334a5f;font-size:8px;font-weight:750}.medfinet-landing .mfl-pilot-form input,.medfinet-landing .mfl-pilot-form select{width:100%;min-height:40px;padding:0 11px;border:1px solid #c7d9e4;border-radius:4px;background:#fff;box-shadow:none;color:var(--navy);font-size:10px}.mfl-pilot-form .mfl-button{width:max-content;min-height:39px;border:0;font-size:10px}.mfl-pilot-form>small{align-self:center;color:#718091;font-size:8px}.mfl-form-success{display:flex;min-height:155px;grid-column:1/-1;align-items:center;justify-content:center;gap:14px;color:var(--green)}.mfl-form-success>svg{width:36px;height:36px;flex:0 0 auto}.mfl-form-success div{display:grid;max-width:400px;gap:4px}.mfl-form-success strong{font-size:12px}.mfl-form-success span{color:#516376;font-size:10px;line-height:1.5}.mfl-form-success a{display:inline-flex;align-items:center;gap:5px;margin-top:5px;color:var(--green);font-size:10px;font-weight:800}
 
-@media (min-width: 768px) {
-  main > section:first-of-type > div {
-    grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
-    column-gap: 2rem;
-    padding-top: 3.25rem;
-    padding-bottom: 3.25rem;
-  }
+.mfl-resources{padding:21px 0 45px;background:#fff}.mfl-resource-heading{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:21px}.medfinet-landing .mfl-resource-heading h2{margin-top:7px;font-size:26px}.mfl-resource-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:23px}.mfl-resource-card{display:grid;min-height:144px;grid-template-columns:39% 61%;overflow:hidden;border:1px solid #e1ebf1;border-radius:8px;background:#f1f8fc}.mfl-resource-card img{width:100%;height:100%;object-fit:cover;background:#dfeaf0}.mfl-resource-card>div{padding:16px 14px}.mfl-resource-card>div>span{color:#6a7d8e;font-size:7px;font-weight:850;letter-spacing:.07em;text-transform:uppercase}.medfinet-landing .mfl-resource-card h3{min-height:52px;margin:6px 0 9px;font-size:11px;font-weight:800;line-height:1.35}.mfl-responsible{display:flex;align-items:center;gap:13px;margin-top:20px;padding:14px 17px;border:1px solid #dce9ee;border-radius:8px;background:#fbfdfd}.mfl-responsible svg{width:29px;height:29px;flex:0 0 auto;color:var(--green)}.mfl-responsible p{color:#506173;font-size:9px;line-height:1.5}
 
-  main > section:first-of-type h1 {
-    max-width: 470px;
-    font-size: clamp(3rem, 4.15vw, 4rem);
-    line-height: 0.99;
-  }
+.mfl-newsletter{background:#1775ba;color:#fff}.mfl-newsletter-inner{display:flex;min-height:72px;align-items:center;justify-content:space-between;gap:28px}.mfl-newsletter-copy{display:flex;align-items:center;gap:12px}.mfl-newsletter-copy>svg{width:30px;height:30px}.mfl-newsletter-copy>span{display:grid;gap:2px}.mfl-newsletter-copy strong{font-size:12px}.mfl-newsletter-copy small{font-size:8px;opacity:.84}.mfl-newsletter form{display:grid;width:min(500px,46vw);grid-template-columns:1fr 125px;gap:9px}.medfinet-landing .mfl-newsletter input,.medfinet-landing .mfl-newsletter button{min-height:40px;border:0;border-radius:5px}.medfinet-landing .mfl-newsletter input{padding:0 13px;background:#fff;box-shadow:none;color:var(--navy);font-size:10px}.mfl-newsletter button{background:#fff;color:#176aa3;font-size:10px;font-weight:850}.mfl-subscribe-success{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:750}.mfl-footer-main{padding:36px 0 18px;background:#10243e;color:rgba(255,255,255,.78)}.mfl-footer-grid{display:grid;grid-template-columns:1.45fr repeat(4,1fr);gap:52px}.mfl-brand-inverse .mfl-brand-copy strong{color:#fff}.mfl-brand-inverse .mfl-brand-copy small{color:rgba(255,255,255,.68)}.mfl-footer-brand>p{max-width:250px;margin-top:13px;font-size:9px;line-height:1.55}.medfinet-landing .mfl-footer-grid h3{margin-bottom:14px;color:#fff;font-size:9px;font-weight:800;text-transform:uppercase}.mfl-footer-grid>div>a,.mfl-footer-grid>div>p{display:block;margin:8px 0;font-size:8px;line-height:1.4}.mfl-footer-bottom{display:flex;justify-content:space-between;gap:24px;margin-top:34px;padding-top:16px;border-top:1px solid rgba(255,255,255,.13);color:rgba(255,255,255,.54);font-size:7px}
 
-  main > section:first-of-type p {
-    max-width: 470px;
-  }
-}
-
-@media (max-width: 767px) {
-  main > section:first-of-type > div {
-    min-height: auto;
-  }
-
-  main > section:first-of-type > div > div:last-child {
-    min-height: 350px;
-  }
-
-  main > section:first-of-type > div > div:last-child > div:nth-child(2) {
-    min-height: 350px;
-    border-radius: 2rem 2rem 4rem 2rem;
-    background-position: center;
-  }
-
-  main > section:first-of-type > div > div:last-child > div:first-child {
-    display: none;
-  }
-}
+@media(max-width:1100px){.mfl-header-inner{grid-template-columns:205px 1fr auto;gap:16px}.mfl-nav{gap:15px;font-size:10px}.mfl-hero-grid{grid-template-columns:48% 52%}.medfinet-landing .mfl-hero-copy h1{font-size:44px}.mfl-capability-grid{grid-template-columns:repeat(3,1fr)}.mfl-role-grid{grid-template-columns:repeat(3,1fr)}.mfl-role-card p{min-height:44px}.mfl-product-grid{gap:28px}.mfl-footer-grid{gap:28px}}
+@media(max-width:840px){.mfl-shell{width:min(100% - 32px,700px)}.mfl-header{height:68px}.mfl-header-inner{grid-template-columns:1fr auto auto}.mfl-menu-toggle{display:grid}.mfl-header-actions .mfl-sign-in{display:none}.mfl-nav{position:absolute;top:68px;right:16px;left:16px;display:none;flex-direction:column;align-items:stretch;gap:0;padding:13px;border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:0 20px 48px rgba(16,36,62,.14)}.mfl-nav.is-open{display:flex}.mfl-nav>a,.mfl-nav-group>summary{padding:11px}.mfl-nav-popover{position:static;margin:0 7px 7px;box-shadow:none}.mfl-hero-grid,.mfl-about-grid,.mfl-product-grid,.mfl-pilot-panel{grid-template-columns:1fr}.mfl-hero-copy{padding:49px 0 35px}.medfinet-landing .mfl-hero-copy h1{font-size:clamp(41px,9vw,57px)}.mfl-hero-visual{min-height:500px;margin-inline:0;border-radius:78px 12px 12px 12px}.mfl-hero-visual>img{min-height:500px}.mfl-hero-status{right:28px;left:28px;min-width:0}.mfl-about-copy{padding:0 0 31px}.mfl-role-grid{grid-template-columns:repeat(2,1fr)}.mfl-steps{grid-template-columns:1fr 1fr;gap:33px 17px}.mfl-steps li:not(:last-child)::after{display:none}.mfl-step-number{left:calc(50% - 59px)}.mfl-pilot-panel{border-radius:27px 27px 10px 10px}.mfl-pilot-intro{min-height:245px}.mfl-resource-grid{grid-template-columns:1fr}.mfl-resource-card{min-height:165px}.mfl-newsletter-inner{flex-direction:column;align-items:stretch;padding-block:18px}.mfl-newsletter form{width:100%}.mfl-footer-grid{grid-template-columns:1.4fr 1fr 1fr}}
+@media(max-width:560px){.mfl-shell{width:min(100% - 28px,480px)}.mfl-brand-copy strong{font-size:18px}.mfl-brand-copy small{display:none}.mfl-header-actions{display:none}.mfl-header-inner{grid-template-columns:1fr auto}.mfl-hero-copy{padding-top:42px}.medfinet-landing .mfl-hero-copy h1{font-size:39px}.mfl-hero-copy>p{font-size:13px}.mfl-hero-actions{flex-direction:column}.mfl-hero-facts{display:grid;grid-template-columns:1fr 1fr;gap:13px}.mfl-hero-visual,.mfl-hero-visual>img{min-height:410px}.mfl-hero-status{right:14px;bottom:14px;left:14px;padding:13px}.mfl-capability-grid{grid-template-columns:1fr 1fr}.mfl-capability-card{min-height:176px}.medfinet-landing .mfl-about-copy h2,.medfinet-landing .mfl-section-heading h2,.medfinet-landing .mfl-product-copy h2{font-size:29px}.mfl-reality{padding:26px 17px 18px}.mfl-problem-grid{grid-template-columns:1fr}.mfl-problem-grid article,.mfl-problem-grid article:nth-child(-n+2){border-top:1px solid #dce7ef;border-left:0}.mfl-problem-grid article:first-child{border-top:0}.mfl-role-grid{grid-template-columns:1fr}.mfl-role-card p{min-height:0}.mfl-steps{grid-template-columns:1fr}.mfl-pilot-intro{grid-template-columns:1fr}.mfl-pilot-intro img{max-height:255px}.mfl-pilot-intro>div{padding:24px}.mfl-pilot-form{grid-template-columns:1fr;padding:22px 19px 28px}.mfl-pilot-form .mfl-button{width:100%}.mfl-resource-heading{flex-direction:column;align-items:flex-start;gap:18px}.mfl-resource-card{grid-template-columns:42% 58%}.mfl-newsletter form{grid-template-columns:1fr}.mfl-footer-grid{grid-template-columns:1fr 1fr}.mfl-footer-brand{grid-column:1/-1}.mfl-footer-bottom{flex-direction:column;align-items:flex-start;gap:11px}}
