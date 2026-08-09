@@ -84,14 +84,17 @@ export function scannerPayload(input: {
   publicId: string;
   cardToken: string;
   uc: string;
+  scanMode: 'PWA_NDEF' | 'TAGWRITER_NDEF';
 }) {
   return [
     'MEDFINET_NTAG215_SCAN_V2',
     input.challengeToken,
     input.publicId,
     input.cardToken,
-    input.uc,
-    'PWA_NDEF',
+    input.scanMode === 'TAGWRITER_NDEF'
+      ? 'NO_UID_COUNTER_MIRROR'
+      : input.uc,
+    input.scanMode,
     'NO_RAW_CHIP_ATTESTATION',
   ].join('\n');
 }

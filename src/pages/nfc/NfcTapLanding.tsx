@@ -10,6 +10,7 @@ type State =
       message: string;
       status: string;
       scannerRequired: boolean;
+      tagWriterDemo: boolean;
     }
   | { kind: "error"; message: string };
 
@@ -33,6 +34,7 @@ export default function NfcTapLanding() {
           message: result.message,
           status: result.status,
           scannerRequired: result.scannerRequired,
+          tagWriterDemo: result.assurance === "BASIC_STATIC_NDEF_DEMO",
         }),
       )
       .catch((error: unknown) =>
@@ -70,7 +72,9 @@ export default function NfcTapLanding() {
               <div>
                 <h2 className="font-semibold text-emerald-200">
                   {state.status === "ACTIVE"
-                    ? "Card recognized"
+                    ? state.tagWriterDemo
+                      ? "Demo card link recognized"
+                      : "Card recognized"
                     : `Card ${state.status.toLowerCase()}`}
                 </h2>
                 <p className="mt-1 text-sm text-emerald-100/80">
@@ -81,8 +85,15 @@ export default function NfcTapLanding() {
             <p className="text-sm leading-6 text-slate-300">
               This public page never shows a child’s name or medical record. An
               authorized health worker must use a registered Medfinet Scanner
-              device to verify the physical NTAG215 card.
+              before any permitted record can be retrieved.
             </p>
+            {state.tagWriterDemo && (
+              <p className="rounded-xl border border-amber-500/40 bg-amber-950/40 p-3 text-sm leading-6 text-amber-100">
+                Demonstration mode: NXP TagWriter stores a static link that can
+                be copied, so this card is not proof that the original physical
+                card is present.
+              </p>
+            )}
             {state.scannerRequired && (
               <button
                 type="button"
