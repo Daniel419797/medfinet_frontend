@@ -11,6 +11,9 @@ const browserGlobalDefinition = {
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  build: {
+    manifest: true,
+  },
   define: browserGlobalDefinition,
   optimizeDeps: {
     exclude: ["lucide-react"],

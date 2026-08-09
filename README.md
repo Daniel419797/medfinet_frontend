@@ -19,7 +19,8 @@ The active application includes:
 - caregiver dashboards, notifications, rewards and privacy requests
 - climate-response worklists, deliveries and referrals
 - NFC credential provisioning, public tap validation and authenticated scanner flows
-- encrypted browser queues for a bounded set of offline operations
+- encrypted browser queues with automatic reconnect synchronization for a bounded set of offline operations
+- installable NFC field PWA with bounded offline resolution for recently verified cards
 - administration for memberships, facilities, programmes, governance, localization, integrations, devices and audit evidence
 
 ## Validation still required
@@ -74,9 +75,11 @@ The application does not maintain a second custom copy of access or refresh toke
 
 ## NFC and offline behaviour
 
-The NFC application shell and static assets can be cached for later loading. Authoritative card verification and clinical record retrieval currently require connectivity to the Medfinet backend.
+The production build creates a versioned NFC application shell and precaches the exact generated assets required by the scanner and offline queue. A custom **Install Medfinet** control uses the browser installation prompt when available and provides platform-specific instructions otherwise.
 
-Selected field operations can be queued locally using AES-GCM encryption with a non-exportable browser key and submitted idempotently when connectivity returns. This protects stored queue contents against casual inspection, but it does not make a compromised browser or device trustworthy.
+An online NFC resolution stores a consent-filtered snapshot for up to 12 hours using AES-GCM and a non-exportable browser key. Offline resolution succeeds only for a card previously verified by the same signed-in subject, organization and registered browser, with matching card token and physical UID and a newer NTAG counter. The screen labels the result as an offline snapshot and disables live-only clinical and emergency actions. Reconnection is required to renew consent, revocation status and clinical information.
+
+Selected field operations can be queued in the same encrypted browser store. Medfinet submits them idempotently when the client regains connectivity, becomes active or receives a browser Background Sync signal. Authentication remains in the Supabase session rather than being copied into service-worker storage, so work left while the app is fully closed synchronizes on the next secure app launch if the browser cannot wake an authenticated client. This protects stored queue contents against casual inspection, but it does not make a compromised browser or device trustworthy.
 
 ## Commands
 

@@ -1,18 +1,49 @@
 {
-  "name": "Medfinet NFC Card Operations",
-  "short_name": "Medfinet NFC",
-  "description": "Secure NTAG215 child identity card scanning and clinical workflows.",
-  "start_url": "/nfc/scanner",
+  "id": "/nfc/",
+  "name": "Medfinet Field Operations",
+  "short_name": "Medfinet",
+  "description": "Secure NFC-assisted child-health and offline field operations.",
+  "start_url": "/nfc/scanner?source=pwa",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "portrait-primary",
   "background_color": "#f8fafc",
   "theme_color": "#0f766e",
+  "categories": ["medical", "productivity"],
+  "prefer_related_applications": false,
   "icons": [
+    {
+      "src": "/medfinet-nfc-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/medfinet-nfc-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
     {
       "src": "/medfinet-nfc-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Scan NFC card",
+      "short_name": "Scan card",
+      "url": "/nfc/scanner",
+      "icons": [{ "src": "/medfinet-nfc-icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Offline operations",
+      "short_name": "Offline sync",
+      "url": "/nfc/offline",
+      "icons": [{ "src": "/medfinet-nfc-icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }

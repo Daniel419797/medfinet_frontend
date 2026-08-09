@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import {
+  ArrowLeft,
   CloudUpload,
   Plus,
   RefreshCw,
@@ -16,6 +17,8 @@ import {
 import { Modal } from "../../components/common/Modal";
 import { PageFeedback } from "../../components/common/PageFeedback";
 import UserContext from "../../contexts/UserContext";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
+import { useOnlineStatus } from "../../hooks/useOnlineStatus";
 import {
   medfinetOfflineApi,
   type SyncBatch,
@@ -27,6 +30,12 @@ import {
   readOfflineQueue,
   writeOfflineQueue,
 } from "../../services/offlineQueueStore";
+import {
+  OFFLINE_SYNC_COMPLETED_EVENT,
+  preferredOfflineDevice,
+  rememberOfflineDevice,
+  syncOfflineQueue,
+} from "../../services/offlineSyncService";
 
 type Payload = Record<string, string | number | boolean>;
 
@@ -125,6 +134,15 @@ function isoPayload(type: SyncOperationType, payload: Payload) {
 
 export default function OfflineSync() {
   const { organizationId, user } = useContext(UserContext);
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const pwaSurface = location.pathname.startsWith("/nfc/");
+  const online = useOnlineStatus();
+  const requestedType = searchParams.get("type") as SyncOperationType | null;
+  const initialType = requestedType && types.includes(requestedType)
+    ? requestedType
+    : "CLINICAL.IMMUNIZATION_RECORD";
+  const requestedChildId = searchParams.get("childId") || "";
   const [devices, setDevices] = useState<Array<Record<string, unknown>>>([]);
   const [deviceId, setDeviceId] = useState("");
   const [queue, setQueue] = useState<SyncOperationInput[]>([]);
@@ -133,12 +151,11 @@ export default function OfflineSync() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
-  const [operationType, setOperationType] = useState<SyncOperationType>(
-    "CLINICAL.IMMUNIZATION_RECORD",
-  );
+  const [open, setOpen] = useState(Boolean(requestedType));
+  const [operationType, setOperationType] = useState<SyncOperationType>(initialType);
   const [payload, setPayload] = useState<Payload>({
-    ...templates["CLINICAL.IMMUNIZATION_RECORD"],
+    ...templates[initialType],
+    ...(requestedChildId ? { childId: requestedChildId } : {}),
   });
   const [entityId, setEntityId] = useState("");
   const [baseVersion, setBaseVersion] = useState("");
@@ -148,15 +165,35 @@ export default function OfflineSync() {
     setLoading(true);
     setError(null);
     try {
-      const [deviceRows, page, saved] = await Promise.all([
+      const saved = await readOfflineQueue(organizationId, user.id);
+      setQueue(saved);
+
+      const rememberedDevice = preferredOfflineDevice(organizationId);
+      setDeviceId((current) => current || rememberedDevice);
+      if (!online) return;
+
+      const [deviceRows, page] = await Promise.all([
         medfinetOperationsApi.devices(organizationId, "ACTIVE"),
         medfinetOfflineApi.listBatches(organizationId),
-        readOfflineQueue(organizationId, user.id),
       ]);
       setDevices(deviceRows);
-      setDeviceId((current) => current || String(deviceRows[0]?.id || ""));
+      setDeviceId((current) => {
+        const localRecordId = localStorage.getItem(
+          "medfinet.nfc.device-record-id",
+        );
+        const localIdentifier = localStorage.getItem("medfinet.nfc.device-id");
+        const localDevice = deviceRows.find(
+          (device) =>
+            (localRecordId && String(device.id) === localRecordId) ||
+            (localIdentifier &&
+              String(device.deviceIdentifier || "") === localIdentifier),
+        );
+        const selected =
+          current || rememberedDevice || String(localDevice?.id || "");
+        if (selected) rememberOfflineDevice(organizationId, selected);
+        return selected;
+      });
       setBatches(page.items);
-      setQueue(saved);
     } catch (reason) {
       setError(
         reason instanceof Error
@@ -166,11 +203,32 @@ export default function OfflineSync() {
     } finally {
       setLoading(false);
     }
-  }, [organizationId, user]);
+  }, [online, organizationId, user]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!organizationId || !user) return;
+    const handleCompleted = (event: Event) => {
+      const completed = (event as CustomEvent<{
+        batch: SyncBatch;
+        submittedCount: number;
+      }>).detail;
+      void readOfflineQueue(organizationId, user.id).then(setQueue);
+      setBatches((current) => [
+        completed.batch,
+        ...current.filter((batch) => batch.id !== completed.batch.id),
+      ]);
+      setNotice(
+        `${completed.submittedCount} offline operation${completed.submittedCount === 1 ? "" : "s"} synchronized automatically.`,
+      );
+    };
+    window.addEventListener(OFFLINE_SYNC_COMPLETED_EVENT, handleCompleted);
+    return () =>
+      window.removeEventListener(OFFLINE_SYNC_COMPLETED_EVENT, handleCompleted);
+  }, [organizationId, user]);
 
   async function persist(next: SyncOperationInput[]) {
     if (!organizationId || !user) return;
@@ -191,7 +249,11 @@ export default function OfflineSync() {
       };
       await persist([...queue, operation]);
       setOpen(false);
-      setNotice("Operation encrypted and stored on this approved browser until sync.");
+      setNotice(
+        online
+          ? "Operation encrypted. Medfinet will synchronize it automatically."
+          : "Operation encrypted and stored on this approved browser until connectivity returns.",
+      );
       setPayload({ ...templates[operationType] });
       setEntityId("");
       setBaseVersion("");
@@ -201,34 +263,27 @@ export default function OfflineSync() {
   }
 
   async function submit() {
-    if (!organizationId || !deviceId || !queue.length) return;
+    if (!organizationId || !user || !queue.length) return;
     setBusy(true);
     setError(null);
     try {
-      const result = await medfinetOfflineApi.submitBatch(
+      const result = await syncOfflineQueue(
         organizationId,
+        user.id,
         deviceId,
-        {
-          clientBatchId: crypto.randomUUID(),
-          operations: queue.map((operation) => ({
-            ...operation,
-            payload: {
-              ...operation.payload,
-              sourceOperationId: operation.clientOperationId,
-            },
-          })),
-        },
       );
-      await persist([]);
-      setBatches((current) => [
-        result.batch,
-        ...current.filter((item) => item.id !== result.batch.id),
-      ]);
-      setNotice(
-        result.idempotentReplay
-          ? "The existing batch was returned safely."
-          : "Encrypted offline operations were accepted for processing.",
-      );
+      if (result) {
+        setQueue(await readOfflineQueue(organizationId, user.id));
+        setBatches((current) => [
+          result.batch,
+          ...current.filter((item) => item.id !== result.batch.id),
+        ]);
+        setNotice(
+          result.idempotentReplay
+            ? "The existing batch was returned safely."
+            : "Encrypted offline operations were accepted for processing.",
+        );
+      }
     } catch (reason) {
       setError(
         reason instanceof Error
@@ -241,16 +296,27 @@ export default function OfflineSync() {
   }
 
   return (
-    <main className="space-y-6">
+    <main
+      className={
+        pwaSurface
+          ? "mx-auto min-h-screen max-w-7xl space-y-6 bg-slate-50 px-4 py-6 sm:px-6"
+          : "space-y-6"
+      }
+    >
       <header className="flex flex-col justify-between gap-4 lg:flex-row">
         <div>
           <p className="text-sm font-semibold text-cyan-700">Intermittent-connectivity operations</p>
           <h1 className="mt-1 text-3xl font-bold text-slate-950">Offline sync</h1>
           <p className="mt-2 text-sm text-slate-600">
-            Capture supported field operations with guided forms, then submit them idempotently when connectivity returns.
+            Capture supported field operations with guided forms. Medfinet encrypts them locally and synchronizes them automatically when connectivity returns.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {pwaSurface ? (
+            <Link className={button} to="/nfc/scanner">
+              <ArrowLeft className="mr-2 inline h-4 w-4" />NFC scanner
+            </Link>
+          ) : null}
           <button className={button} onClick={() => void load()}>
             <RefreshCw className="mr-2 inline h-4 w-4" />Refresh
           </button>
@@ -271,13 +337,40 @@ export default function OfflineSync() {
         </div>
       )}
 
-      <PageFeedback loading={loading} error={error} onRetry={() => void load()}>
+      {error && (
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+          <p>{error}</p>
+          <button type="button" className={`${button} mt-3`} onClick={() => void load()}>
+            Retry
+          </button>
+        </div>
+      )}
+
+      <PageFeedback loading={loading}>
         <section className="rounded-2xl border bg-white p-5">
           <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <label className="text-sm font-semibold">
               Registered active device
-              <select className={input} value={deviceId} onChange={(event) => setDeviceId(event.target.value)}>
+              <select className={input} value={deviceId} onChange={(event) => {
+                const selected = event.target.value;
+                setDeviceId(selected);
+                if (organizationId && user && selected) {
+                  rememberOfflineDevice(organizationId, selected);
+                  void syncOfflineQueue(organizationId, user.id, selected).catch(
+                    (reason: unknown) => {
+                      setError(
+                        reason instanceof Error
+                          ? reason.message
+                          : "Unable to synchronize offline work",
+                      );
+                    },
+                  );
+                }
+              }}>
                 <option value="">Select this device</option>
+                {deviceId && !devices.some((device) => String(device.id) === deviceId) ? (
+                  <option value={deviceId}>Previously selected device</option>
+                ) : null}
                 {devices.map((device) => (
                   <option key={String(device.id)} value={String(device.id)}>
                     {String(device.displayName || device.deviceIdentifier || device.id)}
@@ -287,7 +380,7 @@ export default function OfflineSync() {
             </label>
             <button
               className={primary}
-              disabled={busy || !queue.length || !deviceId || !navigator.onLine}
+              disabled={busy || !queue.length || !online || !deviceId}
               onClick={() => void submit()}
             >
               <CloudUpload className="mr-2 inline h-4 w-4" />
@@ -295,11 +388,21 @@ export default function OfflineSync() {
             </button>
           </div>
 
-          {!navigator.onLine && (
+          {!online && (
             <p className="mt-3 text-sm text-amber-700">
               <WifiOff className="mr-2 inline h-4 w-4" />Offline. Queued work remains encrypted locally.
             </p>
           )}
+          {online && queue.length && deviceId ? (
+            <p className="mt-3 text-sm text-cyan-700">
+              <RefreshCw className="mr-2 inline h-4 w-4" />Automatic synchronization is active. You can also sync immediately.
+            </p>
+          ) : null}
+          {online && queue.length && !deviceId ? (
+            <p className="mt-3 text-sm text-amber-700">
+              Select this approved browser above to enable automatic synchronization.
+            </p>
+          ) : null}
 
           <div className="mt-5 space-y-3">
             {queue.map((operation) => (

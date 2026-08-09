@@ -21,6 +21,17 @@ export class MedfinetApiError extends Error {
   }
 }
 
+export function isMedfinetConnectivityError(error: unknown) {
+  if (error instanceof TypeError) return true;
+  if (!(error instanceof Error)) return false;
+  return [
+    "did not respond in time",
+    "failed to fetch",
+    "networkerror",
+    "load failed",
+  ].some((message) => error.message.toLowerCase().includes(message));
+}
+
 type ApiEnvelope<T> = {
   success: boolean;
   data: T;

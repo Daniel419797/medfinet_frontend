@@ -1,6 +1,6 @@
 import { FormEvent, useContext, useEffect, useState } from 'react';
 import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2, ShieldAlert, Syringe } from 'lucide-react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { medfinetClinicalApi } from '../../services/medfinetClinicalApi';
 import UserContext from '../../contexts/UserContext';
 
@@ -8,10 +8,12 @@ type Timeline = Awaited<ReturnType<typeof medfinetClinicalApi.getClinicalTimelin
 type EmergencyProfile = Awaited<ReturnType<typeof medfinetClinicalApi.getEmergencyProfile>>;
 
 function WorkflowShell({ title, children }: { title: string; children: React.ReactNode }) {
+  const location = useLocation();
+  const scannerPath = location.pathname.startsWith('/nfc/') ? '/nfc/scanner' : '/health-worker/nfc';
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-950 sm:px-6">
       <div className="mx-auto max-w-4xl">
-        <Link to="/health-worker/nfc" className="inline-flex items-center gap-2 text-sm font-semibold text-cyan-800"><ArrowLeft size={17} /> Back to scanner</Link>
+        <Link to={scannerPath} className="inline-flex items-center gap-2 text-sm font-semibold text-cyan-800"><ArrowLeft size={17} /> Back to scanner</Link>
         <h1 className="mt-5 text-3xl font-bold">{title}</h1>
         <div className="mt-6">{children}</div>
       </div>

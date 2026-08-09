@@ -56,17 +56,20 @@ async function configureNfcServiceWorker() {
       const isMedfinetNfcWorker = worker?.scriptURL.endsWith(
         "/nfc-service-worker.js",
       );
-      const isLegacyRootScope = new URL(registration.scope).pathname === "/";
-      if (isMedfinetNfcWorker && isLegacyRootScope) {
+      const isLegacyNfcScope =
+        new URL(registration.scope).pathname === "/nfc/";
+      if (isMedfinetNfcWorker && isLegacyNfcScope) {
         await registration.unregister();
       }
     }),
   );
 
-  if (window.location.pathname.startsWith("/nfc/")) {
-    await navigator.serviceWorker.register("/nfc-service-worker.js", {
-      scope: "/nfc/",
-    });
+  const registration = await navigator.serviceWorker.register(
+    "/nfc-service-worker.js",
+    { scope: "/" },
+  );
+  if (registration.waiting) {
+    registration.waiting.postMessage({ type: "SKIP_WAITING" });
   }
 }
 

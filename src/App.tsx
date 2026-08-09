@@ -4,6 +4,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { UserProvider } from "./contexts/UserContext";
 import { AuthenticatedRoute } from "./components/auth/AuthenticatedRoute";
 import { WorkspaceRedirect } from "./components/auth/WorkspaceRedirect";
+import { OfflineSyncCoordinator } from "./components/offline/OfflineSyncCoordinator";
 import AuthLayout from "./layouts/AuthLayout";
 import DashboardLayout from "./layouts/DashboardLayout";
 import HealthWorkerLayout from "./layouts/HealthWorkerLayout";
@@ -133,6 +134,7 @@ export default function App() {
   return (
     <ThemeProvider>
       <UserProvider>
+        <OfflineSyncCoordinator />
         <Suspense
           fallback={
             <div

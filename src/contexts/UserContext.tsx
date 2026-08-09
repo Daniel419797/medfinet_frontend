@@ -12,6 +12,12 @@ import {
   type OrganizationMembership,
 } from "../services/medfinetSessionApi";
 import { medfinetAuthApi } from "../services/medfinetAuthApi";
+import { isMedfinetConnectivityError } from "../services/medfinetApiClient";
+import {
+  cacheOfflineSession,
+  readOfflineSession,
+  removeOfflineSession,
+} from "../services/offlineSessionStore";
 import { supabase } from "../services/supabaseClient";
 import { BlockchainProvider } from "./BlockchainContext";
 
@@ -85,7 +91,29 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
-      const available = await medfinetSessionApi.organizations();
+      let available: OrganizationMembership[];
+      try {
+        available = await medfinetSessionApi.organizations();
+        try {
+          await cacheOfflineSession(userSession.id, available);
+        } catch (cacheError) {
+          console.warn(
+            "Unable to prepare this session for offline access",
+            cacheError,
+          );
+        }
+      } catch (error) {
+        if (navigator.onLine && !isMedfinetConnectivityError(error)) {
+          throw error;
+        }
+        const cached = await readOfflineSession(userSession.id);
+        if (!cached) {
+          throw new Error(
+            "Reconnect to Medfinet to renew this device's offline access.",
+          );
+        }
+        available = cached.memberships;
+      }
       const savedId = localStorage.getItem("medfinet_org_id");
       const selected =
         available.find((entry) => entry.organization.id === savedId) ||
@@ -149,7 +177,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = async () => {
+    const subjectId = user?.id;
     await medfinetAuthApi.logout();
+    if (subjectId) {
+      await removeOfflineSession(subjectId).catch((cacheError: unknown) => {
+        console.warn("Unable to clear the offline session cache", cacheError);
+      });
+    }
     localStorage.removeItem("medfinet_org_id");
     setUser(null);
     setMemberships([]);

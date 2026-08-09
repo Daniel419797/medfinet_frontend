@@ -54,6 +54,47 @@ export type NfcPreparation = {
   protection: NfcManifest['protection'];
 };
 
+export type NfcScanResult = {
+  assurance: string;
+  child: {
+    id: string;
+    identityRedacted?: boolean;
+    medfinetId?: string;
+    firstName?: string;
+    lastName?: string;
+    dateOfBirth?: string;
+    sex?: string;
+  };
+  limitations: string[];
+  clinicalSummary: {
+    clinicalAccess: 'ALLOWED' | 'CONSENT_REQUIRED';
+    allergies: Array<{
+      id: string;
+      substanceDisplay: string;
+      reaction?: string;
+      severity: string;
+      criticality: string;
+    }>;
+    vaccination: {
+      dueCount: number;
+      overdueCount: number;
+      recordedDoses: number;
+      recommendations: Array<{
+        vaccineCode: string;
+        doseNumber: number;
+        status: string;
+        dueAt: string;
+      }>;
+    };
+    consent: { status: string; expiresAt: string | null };
+  };
+  actions: {
+    clinicalRecord?: string;
+    recordVaccination?: string;
+    emergencyAccess: string;
+  };
+};
+
 export const medfinetNfcApi = {
   createDraft(
     organizationId: string,
@@ -150,46 +191,7 @@ export const medfinetNfcApi = {
     scanMode?: 'PWA_NDEF' | 'NATIVE_RAW';
     deviceSignature: string;
   }) {
-    return request<{
-      assurance: string;
-      child: {
-        id: string;
-        identityRedacted?: boolean;
-        medfinetId?: string;
-        firstName?: string;
-        lastName?: string;
-        dateOfBirth?: string;
-        sex?: string;
-      };
-      limitations: string[];
-      clinicalSummary: {
-        clinicalAccess: 'ALLOWED' | 'CONSENT_REQUIRED';
-        allergies: Array<{
-          id: string;
-          substanceDisplay: string;
-          reaction?: string;
-          severity: string;
-          criticality: string;
-        }>;
-        vaccination: {
-          dueCount: number;
-          overdueCount: number;
-          recordedDoses: number;
-          recommendations: Array<{
-            vaccineCode: string;
-            doseNumber: number;
-            status: string;
-            dueAt: string;
-          }>;
-        };
-        consent: { status: string; expiresAt: string | null };
-      };
-      actions: {
-        clinicalRecord?: string;
-        recordVaccination?: string;
-        emergencyAccess: string;
-      };
-    }>('/nfc/scans/resolve', {
+    return request<NfcScanResult>('/nfc/scans/resolve', {
       method: 'POST',
       body,
       purpose: 'nfc-card-resolution',
