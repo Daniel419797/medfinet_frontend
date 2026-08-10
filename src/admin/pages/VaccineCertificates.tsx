@@ -10,6 +10,7 @@ import {
   Eye,
   FileCheck2,
   Loader2,
+  PencilLine,
   RefreshCw,
   Search,
   Syringe,
@@ -18,11 +19,16 @@ import { PageFeedback } from "../../components/common/PageFeedback";
 import CertificateBlockchainEvidence, {
   unavailableEvidence,
 } from "../../components/clinical/CertificateBlockchainEvidence";
+import VaccinationCertificateMetadataModal from "../../components/clinical/VaccinationCertificateMetadataModal";
 import UserContext from "../../contexts/UserContext";
 import {
   medfinetClinicalApi,
   type VaccinationCertificateEvidence,
 } from "../../services/medfinetClinicalApi";
+import {
+  medfinetFacilityApi,
+  type MedfinetFacility,
+} from "../../services/medfinetFacilityApi";
 import { medfinetIdentityApi } from "../../services/medfinetIdentityApi";
 
 type Child = Awaited<
@@ -49,9 +55,21 @@ function certificateAvailable(vaccination: Immunization) {
   return ["ACTIVE", "AMENDED"].includes(vaccination.status);
 }
 
+function certificateMetadataComplete(vaccination: Immunization) {
+  const metadata = vaccination.certificateMetadata;
+  return Boolean(
+    metadata?.facilityName &&
+      metadata.state &&
+      metadata.lga &&
+      metadata.ward &&
+      metadata.vaccinatorName,
+  );
+}
+
 export default function VaccineCertificates() {
-  const { organizationId } = useContext(UserContext);
+  const { organizationId, user } = useContext(UserContext);
   const [children, setChildren] = useState<Child[]>([]);
+  const [facilities, setFacilities] = useState<MedfinetFacility[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [timeline, setTimeline] = useState<Timeline | null>(null);
   const [query, setQuery] = useState("");
@@ -61,6 +79,7 @@ export default function VaccineCertificates() {
   const [previewBusyId, setPreviewBusyId] = useState<string | null>(null);
   const [evidenceBusy, setEvidenceBusy] = useState(false);
   const [preview, setPreview] = useState<CertificatePreview | null>(null);
+  const [amendmentTarget, setAmendmentTarget] = useState<Immunization | null>(null);
   const selected = children.find((child) => child.id === selectedId) || null;
 
   const clearPreview = useCallback(() => {
@@ -77,10 +96,12 @@ export default function VaccineCertificates() {
     setLoadingChildren(true);
     setError(null);
     try {
-      const result = await medfinetIdentityApi.listChildren(organizationId, {
-        limit: 100,
-      });
+      const [result, facilityRows] = await Promise.all([
+        medfinetIdentityApi.listChildren(organizationId, { limit: 100 }),
+        medfinetFacilityApi.list(organizationId),
+      ]);
       setChildren(result.items);
+      setFacilities(facilityRows);
       setSelectedId((current) =>
         current && result.items.some((child) => child.id === current)
           ? current
@@ -88,7 +109,9 @@ export default function VaccineCertificates() {
       );
     } catch (reason) {
       setError(
-        reason instanceof Error ? reason.message : "Unable to load child records",
+        reason instanceof Error
+          ? reason.message
+          : "Unable to load child records and facilities",
       );
     } finally {
       setLoadingChildren(false);
@@ -244,7 +267,7 @@ export default function VaccineCertificates() {
             Vaccines & certificates
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
-            Select a child and vaccine to view the generated certificate, download it, and verify its Algorand fingerprint anchor and certificate NFT.
+            Select a child and vaccine to view the generated certificate, download it, verify its Algorand evidence, or complete verified historical certificate details.
           </p>
         </div>
         <button
@@ -359,6 +382,7 @@ export default function VaccineCertificates() {
                         const available = certificateAvailable(vaccination);
                         const active = preview?.immunizationId === vaccination.id;
                         const busy = previewBusyId === vaccination.id;
+                        const metadataComplete = certificateMetadataComplete(vaccination);
                         return (
                           <article
                             key={vaccination.id}
@@ -377,28 +401,64 @@ export default function VaccineCertificates() {
                             <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
                               {vaccination.status}
                             </p>
-                            <button
-                              type="button"
-                              className={`${secondaryButton} mt-4 w-full`}
-                              disabled={!available || previewBusyId !== null}
-                              onClick={() => void showCertificate(vaccination)}
-                              title={
-                                available
-                                  ? "View generated vaccination certificate"
-                                  : `Certificate unavailable for ${vaccination.status.toLowerCase()} records`
-                              }
-                            >
-                              {busy ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Eye className="h-4 w-4" />
+
+                            {metadataComplete ? (
+                              <div className="mt-3 rounded-lg bg-emerald-50 p-3 text-xs text-emerald-950">
+                                <p className="font-semibold">
+                                  {vaccination.certificateMetadata?.facilityName}
+                                </p>
+                                <p className="mt-1">
+                                  {vaccination.certificateMetadata?.state} · {vaccination.certificateMetadata?.lga} · {vaccination.certificateMetadata?.ward}
+                                </p>
+                                <p className="mt-1">
+                                  Vaccinator: {vaccination.certificateMetadata?.vaccinatorName}
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-950">
+                                <p className="font-bold">Certificate details incomplete</p>
+                                <p>
+                                  State, LGA, Ward, facility name or vaccinator was not historically snapshotted. Verify the original source record before completing it.
+                                </p>
+                              </div>
+                            )}
+
+                            <div className="mt-4 grid gap-2">
+                              <button
+                                type="button"
+                                className={`${secondaryButton} w-full`}
+                                disabled={!available || previewBusyId !== null}
+                                onClick={() => void showCertificate(vaccination)}
+                                title={
+                                  available
+                                    ? "View generated vaccination certificate"
+                                    : `Certificate unavailable for ${vaccination.status.toLowerCase()} records`
+                                }
+                              >
+                                {busy ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Eye className="h-4 w-4" />
+                                )}
+                                {busy
+                                  ? "Preparing certificate…"
+                                  : active
+                                    ? "Certificate shown"
+                                    : "View certificate"}
+                              </button>
+                              {available && (
+                                <button
+                                  type="button"
+                                  className={`${secondaryButton} w-full`}
+                                  onClick={() => setAmendmentTarget(vaccination)}
+                                >
+                                  <PencilLine className="h-4 w-4" />
+                                  {metadataComplete
+                                    ? "Amend certificate details"
+                                    : "Complete certificate details"}
+                                </button>
                               )}
-                              {busy
-                                ? "Preparing certificate…"
-                                : active
-                                  ? "Certificate shown"
-                                  : "View certificate"}
-                            </button>
+                            </div>
                           </article>
                         );
                       })
@@ -480,6 +540,21 @@ export default function VaccineCertificates() {
           </PageFeedback>
         </section>
       </div>
+
+      {organizationId && (
+        <VaccinationCertificateMetadataModal
+          open={Boolean(amendmentTarget)}
+          organizationId={organizationId}
+          vaccination={amendmentTarget}
+          facilities={facilities}
+          currentUserName={user?.name || ""}
+          onClose={() => setAmendmentTarget(null)}
+          onSaved={async () => {
+            clearPreview();
+            await loadTimeline();
+          }}
+        />
+      )}
     </main>
   );
 }
