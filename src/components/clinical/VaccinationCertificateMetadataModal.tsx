@@ -94,6 +94,11 @@ export default function VaccinationCertificateMetadataModal({
     () => facilities.find((facility) => facility.id === form.facilitySelection),
     [facilities, form.facilitySelection],
   );
+  const storedFacilityReferenceMissing = Boolean(
+    form.facilitySelection &&
+      form.facilitySelection !== MANUAL_FACILITY &&
+      !selectedFacility,
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -206,6 +211,11 @@ export default function VaccinationCertificateMetadataModal({
                 value={form.facilitySelection}
                 onChange={(event) => selectFacility(event.target.value)}
               >
+                {storedFacilityReferenceMissing && (
+                  <option value={form.facilitySelection}>
+                    Recorded facility reference ({form.facilitySelection})
+                  </option>
+                )}
                 {facilities.map((facility) => (
                   <option key={facility.id} value={facility.id}>
                     {facility.name}
@@ -216,6 +226,11 @@ export default function VaccinationCertificateMetadataModal({
                 </option>
               </select>
             </label>
+            {storedFacilityReferenceMissing && (
+              <p className="rounded-lg border border-amber-200 bg-white p-3 text-xs leading-5 text-amber-900">
+                The facility reference stored on this vaccination is no longer in the active facility list. You can retain the reference after verifying the original record, choose another valid facility, or use the historical/external option.
+              </p>
+            )}
             <label className="block text-sm font-semibold">
               Health facility / vaccination site name
               <input
