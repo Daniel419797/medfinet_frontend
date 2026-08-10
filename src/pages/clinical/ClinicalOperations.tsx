@@ -134,7 +134,10 @@ function locationFromFacility(facility: MedfinetFacility | undefined) {
 function metadataPayload(form: VaccinationMetadataForm) {
   return {
     ...(form.facilitySelection && form.facilitySelection !== MANUAL_FACILITY
-      ? { facilityId: form.facilitySelection }
+      ? {
+          facilityId: form.facilitySelection,
+          facilityName: form.facilityName.trim(),
+        }
       : { facilityName: form.facilityName.trim() }),
     state: form.state.trim(),
     lga: form.lga.trim(),
@@ -173,6 +176,11 @@ function VaccinationMetadataFields({
   const selectedFacility = facilities.find(
     (facility) => facility.id === value.facilitySelection,
   );
+  const storedFacilityReferenceMissing = Boolean(
+    value.facilitySelection
+      && value.facilitySelection !== MANUAL_FACILITY
+      && !selectedFacility,
+  );
   const facilityIncomplete = Boolean(
     selectedFacility
       && (!selectedFacility.state || !selectedFacility.lga || !selectedFacility.ward),
@@ -191,7 +199,8 @@ function VaccinationMetadataFields({
       {historical && (
         <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-medium leading-5 text-amber-900">
           This is a historical correction. Verify the location and vaccinator from
-          the source record before saving; Medfinet will not guess missing values.
+          the source record before saving; Medfinet deliberately leaves missing
+          historical facts blank instead of copying today's facility details.
         </p>
       )}
       <label className="block text-sm font-semibold">
@@ -208,14 +217,30 @@ function VaccinationMetadataFields({
               ...value,
               facilitySelection,
               facilityName:
-                facilitySelection === MANUAL_FACILITY ? "" : location.facilityName,
-              state: facilitySelection === MANUAL_FACILITY ? "" : location.state,
-              lga: facilitySelection === MANUAL_FACILITY ? "" : location.lga,
-              ward: facilitySelection === MANUAL_FACILITY ? "" : location.ward,
+                historical || facilitySelection === MANUAL_FACILITY
+                  ? ""
+                  : location.facilityName,
+              state:
+                historical || facilitySelection === MANUAL_FACILITY
+                  ? ""
+                  : location.state,
+              lga:
+                historical || facilitySelection === MANUAL_FACILITY
+                  ? ""
+                  : location.lga,
+              ward:
+                historical || facilitySelection === MANUAL_FACILITY
+                  ? ""
+                  : location.ward,
             });
           }}
         >
           <option value="">Select facility</option>
+          {storedFacilityReferenceMissing && (
+            <option value={value.facilitySelection}>
+              Recorded facility reference ({value.facilitySelection})
+            </option>
+          )}
           {facilities.map((facility) => (
             <option key={facility.id} value={facility.id}>
               {facility.name}
@@ -224,7 +249,7 @@ function VaccinationMetadataFields({
           <option value={MANUAL_FACILITY}>Outreach / external location</option>
         </select>
       </label>
-      {value.facilitySelection === MANUAL_FACILITY && (
+      {(historical || value.facilitySelection === MANUAL_FACILITY) && (
         <label className="block text-sm font-semibold">
           Facility / vaccination site name
           <input
@@ -232,10 +257,18 @@ function VaccinationMetadataFields({
             className={fieldClass}
             value={value.facilityName}
             onChange={(event) => onChange({ ...value, facilityName: event.target.value })}
+            placeholder={historical ? "Enter the name verified from the source record" : undefined}
           />
         </label>
       )}
-      {facilityIncomplete && (
+      {storedFacilityReferenceMissing && (
+        <p className="rounded-lg border border-amber-200 bg-white p-3 text-xs text-amber-900">
+          The original facility is not in the active facility list. Retain this
+          reference only if the source record confirms it, or choose the
+          historical/external option.
+        </p>
+      )}
+      {facilityIncomplete && !historical && (
         <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
           This facility does not yet have a complete State, LGA and Ward profile.
           Confirm the missing values below for this vaccination, and ask an admin
@@ -532,9 +565,8 @@ export default function ClinicalOperations() {
 
   function openAmendment(item: Immunization) {
     const metadata = item.certificateMetadata;
+    const historical = !certificateMetadataComplete(item);
     const facilityId = metadata?.facilityId || item.facilityId || "";
-    const facility = facilities.find((row) => row.id === facilityId);
-    const currentLocation = locationFromFacility(facility);
     const useSelf = Boolean(
       metadata?.vaccinatorSubjectId
         && user?.id
@@ -543,12 +575,12 @@ export default function ClinicalOperations() {
     setAmendTarget(item);
     setAmendForm({
       facilitySelection: facilityId || MANUAL_FACILITY,
-      facilityName: metadata?.facilityName || (facility ? currentLocation.facilityName : ""),
-      state: metadata?.state || currentLocation.state,
-      lga: metadata?.lga || currentLocation.lga,
-      ward: metadata?.ward || currentLocation.ward,
-      vaccinatorMode: useSelf ? "SELF" : "OTHER",
-      vaccinatorName: useSelf ? "" : metadata?.vaccinatorName || "",
+      facilityName: historical ? "" : metadata?.facilityName || "",
+      state: historical ? "" : metadata?.state || "",
+      lga: historical ? "" : metadata?.lga || "",
+      ward: historical ? "" : metadata?.ward || "",
+      vaccinatorMode: historical ? "OTHER" : useSelf ? "SELF" : "OTHER",
+      vaccinatorName: historical || useSelf ? "" : metadata?.vaccinatorName || "",
       reason: "",
     });
   }
