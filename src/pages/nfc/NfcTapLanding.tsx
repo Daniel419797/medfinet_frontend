@@ -1,8 +1,5 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import {
-  AlertTriangle,
-  CheckCircle2,
-  FileHeart,
   Loader2,
   LockKeyhole,
   ShieldCheck,
@@ -10,11 +7,8 @@ import {
   Smartphone,
   Syringe,
 } from "lucide-react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import {
-  medfinetNfcApi,
-  type NfcScanResult,
-} from "../../services/medfinetNfcApi";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { medfinetNfcApi } from "../../services/medfinetNfcApi";
 import UserContext from "../../contexts/UserContext";
 import {
   devicePublicKeyPem,
@@ -22,6 +16,10 @@ import {
   signNfcPayload,
   stableDeviceIdentifier,
 } from "../../services/nfcDeviceKeyStore";
+import {
+  clearNfcVaccineAccess,
+  storeNfcVaccineAccess,
+} from "../../services/nfcSecureAccessStore";
 
 type TapCard = {
   publicId: string;
@@ -34,18 +32,12 @@ type StoredTapCard = TapCard & { savedAt: number };
 
 type State =
   | { kind: "loading" }
-  | {
-      kind: "verified";
-      message: string;
-      status: string;
-      scannerRequired: boolean;
-      staticNdef: boolean;
-    }
+  | { kind: "verified"; message: string; status: string }
   | { kind: "resolving" }
-  | { kind: "resolved"; result: NfcScanResult }
   | { kind: "error"; message: string };
 
 const TAP_CACHE_TTL_MS = 15 * 60 * 1000;
+const VACCINE_ACCESS_QUERY = "vaccines";
 
 function tapCacheKey(publicId: string) {
   return `medfinet.nfc.pending-tap.${publicId}`;
@@ -74,7 +66,7 @@ function readTapCard(publicId: string): TapCard | null {
       // The current tap can still continue when browser session storage is blocked.
     }
 
-    // The NFC credential stays in browser memory instead of browser history.
+    // Keep the opaque card credential out of browser history and shared URLs.
     window.history.replaceState(
       null,
       "",
@@ -108,10 +100,29 @@ function readTapCard(publicId: string): TapCard | null {
 
 export default function NfcTapLanding() {
   const { publicId = "" } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
-  const { user, organizationId, sessionReady } = useContext(UserContext);
+  const {
+    user,
+    sessionReady,
+    setOrganizationId,
+  } = useContext(UserContext);
   const [card, setCard] = useState<TapCard | null>(null);
   const [state, setState] = useState<State>({ kind: "loading" });
+  const [retryNonce, setRetryNonce] = useState(0);
+  const mountedRef = useRef(true);
+  const accessRequestRef = useRef(0);
+
+  const requestedAccess =
+    new URLSearchParams(location.search).get("access") === VACCINE_ACCESS_QUERY;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      accessRequestRef.current += 1;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -119,6 +130,7 @@ export default function NfcTapLanding() {
 
     const recognizeCurrentTap = async () => {
       const currentRequest = ++requestNumber;
+      clearNfcVaccineAccess(publicId);
       const currentCard = readTapCard(publicId);
       if (!currentCard) {
         if (active) {
@@ -145,10 +157,6 @@ export default function NfcTapLanding() {
           kind: "verified",
           message: result.message,
           status: result.status,
-          scannerRequired: result.scannerRequired,
-          staticNdef:
-            result.hardwareFamily === "NTAG_215_TAGWRITER_DEMO" ||
-            result.assurance === "BASIC_STATIC_NDEF_DEMO",
         });
       } catch (error) {
         if (!active || currentRequest !== requestNumber) return;
@@ -167,47 +175,36 @@ export default function NfcTapLanding() {
       active = false;
       window.removeEventListener("hashchange", onHashChange);
     };
-  }, [publicId]);
+  }, [publicId, retryNonce]);
 
   useEffect(() => {
-    if (
-      state.kind !== "verified" ||
-      state.status !== "ACTIVE" ||
-      !state.staticNdef ||
-      !state.scannerRequired ||
-      !sessionReady ||
-      !user ||
-      !organizationId ||
-      !card
-    ) {
+    if (!requestedAccess || !sessionReady || state.kind !== "verified") return;
+
+    if (!user) {
+      const next = `/nfc/tap/${encodeURIComponent(publicId)}?access=${VACCINE_ACCESS_QUERY}`;
+      navigate(`/login?next=${encodeURIComponent(next)}`, { replace: true });
       return;
     }
+
+    if (state.status !== "ACTIVE" || !card) return;
+
+    const requestId = ++accessRequestRef.current;
+    const current = () =>
+      mountedRef.current && requestId === accessRequestRef.current;
 
     setState({ kind: "resolving" });
     void (async () => {
       try {
-        const deviceStorageKey = `medfinet.nfc.device-record-id.${organizationId}`;
-        let deviceId = localStorage.getItem(deviceStorageKey) || "";
-        if (!deviceId) {
-          const registration = await medfinetNfcApi.registerDevice(
-            organizationId,
-            {
-              deviceIdentifier: stableDeviceIdentifier(),
-              displayName: `NFC Web · ${navigator.platform || "Browser"}`,
-              platform: "Web NFC",
-              appVersion: "1.0.0",
-              publicKey: await devicePublicKeyPem(),
-            },
-          );
-          deviceId = registration.device.id;
-          localStorage.setItem(deviceStorageKey, deviceId);
-          // Keep the legacy key in sync for the existing scanner page.
-          localStorage.setItem("medfinet.nfc.device-record-id", deviceId);
-        }
-
         const challenge = await medfinetNfcApi.createChallenge(
           card.publicId,
-          deviceId,
+          {
+            deviceIdentifier: `${stableDeviceIdentifier()}:${user.id}`,
+            displayName: `NFC PWA · ${navigator.platform || "Browser"}`,
+            platform: "Web NFC PWA",
+            appVersion: "1.0.0",
+            publicKey: await devicePublicKeyPem(),
+          },
+          "IMMUNIZATION_CERTIFICATES",
         );
         const payload = scannerPayload({
           ...card,
@@ -218,33 +215,68 @@ export default function NfcTapLanding() {
           ...card,
           challengeToken: challenge.challengeToken,
           deviceSignature,
+          accessIntent: "IMMUNIZATION_CERTIFICATES",
         });
-        setState({ kind: "resolved", result });
+
+        if (!current()) return;
+
+        if (result.clinicalSummary.clinicalAccess !== "ALLOWED") {
+          setState({
+            kind: "error",
+            message:
+              "Your account is signed in, but the required vaccination disclosure consent is not available for this card.",
+          });
+          return;
+        }
+
+        setOrganizationId(result.organizationId);
+        const childName = `${result.child.firstName || ""} ${result.child.lastName || ""}`.trim();
+        storeNfcVaccineAccess(publicId, {
+          organizationId: result.organizationId,
+          childId: result.child.id,
+          childName: childName || undefined,
+          immunizations: result.clinicalSummary.vaccination.records || [],
+        });
+        if (!current()) {
+          clearNfcVaccineAccess(publicId);
+          return;
+        }
+        navigate(`/nfc/tap/${encodeURIComponent(publicId)}/vaccines`, {
+          replace: true,
+        });
       } catch (error) {
+        if (!current()) return;
         setState({
           kind: "error",
           message:
             error instanceof Error
               ? error.message
-              : "Could not open the permitted child record",
+              : "Could not open the permitted vaccination records",
         });
       }
     })();
-  }, [card, organizationId, sessionReady, state, user]);
+  }, [
+    card,
+    navigate,
+    publicId,
+    requestedAccess,
+    sessionReady,
+    setOrganizationId,
+    state,
+    user,
+  ]);
 
-  const resolved = state.kind === "resolved" ? state.result : null;
-  const clinicalAllowed =
-    resolved?.clinicalSummary.clinicalAccess === "ALLOWED";
-  const childBase = resolved
-    ? `/health-worker/nfc/children/${resolved.child.id}`
-    : "";
-  const consentLabel = resolved
-    ? resolved.clinicalSummary.consent.status === "GRANTED"
-      ? "Granted"
-      : clinicalAllowed
-        ? "Test admin access"
-        : "Required"
-    : "";
+  function requestVaccinationAccess() {
+    const next = `/nfc/tap/${encodeURIComponent(publicId)}?access=${VACCINE_ACCESS_QUERY}`;
+    // Re-enter credentials even when a session already exists. NFC clinical access
+    // is intentionally a fresh authentication step requested by the product flow.
+    navigate(`/login?next=${encodeURIComponent(next)}`);
+  }
+
+  function retryCard() {
+    navigate(`/nfc/tap/${encodeURIComponent(publicId)}`, { replace: true });
+    setRetryNonce((value) => value + 1);
+  }
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100 sm:py-12">
@@ -259,9 +291,7 @@ export default function NfcTapLanding() {
           </div>
         </div>
 
-        {(state.kind === "loading" ||
-          state.kind === "resolving" ||
-          (state.kind === "verified" && !sessionReady)) && (
+        {(state.kind === "loading" || state.kind === "resolving") && (
           <div
             role="status"
             className="flex items-center gap-3 rounded-2xl bg-slate-800 p-5"
@@ -269,15 +299,13 @@ export default function NfcTapLanding() {
             <Loader2 className="animate-spin text-cyan-300" />
             <span>
               {state.kind === "resolving"
-                ? "Authenticating this card and loading permitted records…"
-                : state.kind === "verified"
-                  ? "Restoring your secure Medfinet session…"
-                  : "Checking the card status…"}
+                ? "Verifying your credentials and opening vaccination records…"
+                : "Checking the card status…"}
             </span>
           </div>
         )}
 
-        {state.kind === "verified" && sessionReady && (
+        {state.kind === "verified" && (
           <div className="space-y-5">
             <div className="flex gap-3 rounded-2xl border border-emerald-700/50 bg-emerald-950/40 p-5">
               <ShieldCheck className="mt-0.5 shrink-0 text-emerald-300" />
@@ -287,159 +315,42 @@ export default function NfcTapLanding() {
                     ? "Card recognized"
                     : `Card ${state.status.toLowerCase()}`}
                 </h2>
-                <p className="mt-1 text-sm text-emerald-100/80">
+                <p className="mt-1 text-sm leading-6 text-emerald-100/80">
                   {state.message}
                 </p>
               </div>
             </div>
 
-            {state.status === "ACTIVE" && !user && (
+            {state.status === "ACTIVE" && !requestedAccess && (
               <div className="rounded-2xl border border-slate-700 bg-slate-800/70 p-5">
-                <p className="text-sm leading-6 text-slate-300">
-                  Sign in with an authorized Medfinet account, then tap the card
-                  again. Child and clinical information is never returned from
-                  the public NFC link.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => navigate("/login")}
-                  className="mt-4 w-full rounded-xl bg-cyan-400 px-4 py-3 font-semibold text-slate-950 hover:bg-cyan-300"
-                >
-                  Sign in to Medfinet
-                </button>
-              </div>
-            )}
-
-            {state.status === "ACTIVE" && user && !state.staticNdef && (
-              <div className="rounded-2xl border border-slate-700 bg-slate-800/70 p-5">
-                <p className="text-sm leading-6 text-slate-300">
-                  This protected card requires the secure scanner to verify its
-                  chip UID and counter before records can be opened.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => navigate("/health-worker/nfc")}
-                  className="mt-4 w-full rounded-xl bg-cyan-400 px-4 py-3 font-semibold text-slate-950 hover:bg-cyan-300"
-                >
-                  Open secure scanner
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {resolved && (
-          <div className="space-y-5">
-            <div className="flex gap-3 rounded-2xl border border-emerald-700/50 bg-emerald-950/40 p-5">
-              <CheckCircle2 className="mt-0.5 shrink-0 text-emerald-300" />
-              <div>
-                <h2 className="font-semibold text-emerald-200">
-                  Authenticated NFC access
-                </h2>
-                <p className="mt-1 text-sm text-emerald-100/80">
-                  Your account, organization, registered browser key, card token
-                  and card lifecycle were verified before these records were
-                  returned.
-                </p>
-              </div>
-            </div>
-
-            <div>
-              <h2 className="text-2xl font-bold text-white">
-                {clinicalAllowed
-                  ? `${resolved.child.firstName || ""} ${resolved.child.lastName || ""}`.trim()
-                  : "Identity hidden until consent"}
-              </h2>
-              {clinicalAllowed && resolved.child.medfinetId && (
-                <p className="mt-1 text-sm text-slate-400">
-                  Child ID: {resolved.child.medfinetId}
-                </p>
-              )}
-            </div>
-
-            {clinicalAllowed &&
-              resolved.clinicalSummary.allergies.length > 0 && (
-                <div className="rounded-2xl border border-amber-500/40 bg-amber-950/40 p-4">
-                  <p className="flex items-center gap-2 font-semibold text-amber-200">
-                    <AlertTriangle size={18} /> Active allergies
-                  </p>
-                  <p className="mt-2 text-sm text-amber-100">
-                    {resolved.clinicalSummary.allergies
-                      .map((item) => item.substanceDisplay)
-                      .join(", ")}
-                  </p>
+                <div className="flex items-start gap-3">
+                  <LockKeyhole className="mt-0.5 shrink-0 text-cyan-300" />
+                  <div>
+                    <h2 className="font-semibold text-white">
+                      Vaccination records are protected
+                    </h2>
+                    <p className="mt-1 text-sm leading-6 text-slate-300">
+                      Anyone can tap and verify that this is an active Medfinet
+                      card. Vaccines and certificates only appear after you
+                      choose to view them and sign in with an authorized account.
+                    </p>
+                  </div>
                 </div>
-              )}
-
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl border border-slate-700 bg-slate-800/70 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Recorded doses
-                </p>
-                <p className="mt-1 text-xl font-bold text-white">
-                  {clinicalAllowed
-                    ? resolved.clinicalSummary.vaccination.recordedDoses
-                    : "—"}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-slate-700 bg-slate-800/70 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Due / overdue
-                </p>
-                <p className="mt-1 text-xl font-bold text-white">
-                  {clinicalAllowed
-                    ? `${resolved.clinicalSummary.vaccination.dueCount} / ${resolved.clinicalSummary.vaccination.overdueCount}`
-                    : "—"}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-slate-700 bg-slate-800/70 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Consent
-                </p>
-                <p className="mt-1 text-xl font-bold text-white">
-                  {consentLabel}
-                </p>
-              </div>
-            </div>
-
-            {!clinicalAllowed && (
-              <div className="rounded-2xl border border-amber-500/40 bg-amber-950/40 p-4 text-sm leading-6 text-amber-100">
-                Routine clinical details are hidden because Medfinet did not find
-                an applicable active consent. Record or verify consent before
-                routine care, or use the audited emergency workflow when
-                clinically justified.
+                <button
+                  type="button"
+                  onClick={requestVaccinationAccess}
+                  className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-3 font-semibold text-slate-950 hover:bg-cyan-300"
+                >
+                  <Syringe size={18} /> View vaccines &amp; certificates
+                </button>
               </div>
             )}
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              {clinicalAllowed && (
-                <>
-                  <Link
-                    to={`${childBase}/clinical`}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-3 font-semibold text-slate-950 hover:bg-cyan-300"
-                  >
-                    <FileHeart size={18} /> Vaccinations &amp; certificates
-                  </Link>
-                  <Link
-                    to={`${childBase}/vaccination`}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-400/50 px-4 py-3 font-semibold text-cyan-200 hover:bg-cyan-400/10"
-                  >
-                    <Syringe size={18} /> Record vaccination
-                  </Link>
-                </>
-              )}
-              <Link
-                to={`${childBase}/emergency`}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-500/50 px-4 py-3 font-semibold text-rose-200 hover:bg-rose-500/10"
-              >
-                <LockKeyhole size={18} /> Emergency access
-              </Link>
-            </div>
-
-            <p className="text-xs leading-5 text-slate-400">
-              NFC access is permission checked and audited. Protected NTAG215
-              provisioning adds chip-level anti-cloning checks where required.
-            </p>
+            {state.status !== "ACTIVE" && (
+              <p className="rounded-2xl border border-slate-700 bg-slate-800/70 p-4 text-sm leading-6 text-slate-300">
+                Protected records cannot be opened from an inactive card.
+              </p>
+            )}
           </div>
         )}
 
@@ -450,7 +361,16 @@ export default function NfcTapLanding() {
               <h2 className="font-semibold text-rose-200">
                 Card access unavailable
               </h2>
-              <p className="mt-1 text-sm text-rose-100/80">{state.message}</p>
+              <p className="mt-1 text-sm leading-6 text-rose-100/80">
+                {state.message}
+              </p>
+              <button
+                type="button"
+                onClick={retryCard}
+                className="mt-4 rounded-xl border border-rose-300/40 px-4 py-2.5 text-sm font-semibold text-rose-100 hover:bg-rose-500/10"
+              >
+                Back to card
+              </button>
             </div>
           </div>
         )}

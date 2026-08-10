@@ -1,11 +1,25 @@
 import { type FormEvent, useContext, useState } from "react";
 import { EnvelopeSimple, LockKey } from "@phosphor-icons/react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import UserContext from "../../contexts/UserContext";
 import { medfinetAuthApi } from "../../services/medfinetAuthApi";
 
+function safeReturnPath(search: string, state: unknown) {
+  const queryNext = new URLSearchParams(search).get("next");
+  const stateFrom =
+    state && typeof state === "object" && "from" in state
+      ? (state as { from?: unknown }).from
+      : null;
+  const candidate =
+    queryNext || (typeof stateFrom === "string" ? stateFrom : "");
+  return candidate.startsWith("/") && !candidate.startsWith("//")
+    ? candidate
+    : "/workspace";
+}
+
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { refreshSession } = useContext(UserContext);
   const [form, setForm] = useState({ email: "", password: "" });
   const [busy, setBusy] = useState(false);
@@ -28,7 +42,9 @@ export default function Login() {
         );
         return;
       }
-      navigate("/workspace", { replace: true });
+      navigate(safeReturnPath(location.search, location.state), {
+        replace: true,
+      });
     } catch (reason) {
       setError(
         reason instanceof Error

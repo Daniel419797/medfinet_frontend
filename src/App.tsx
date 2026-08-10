@@ -84,6 +84,9 @@ const ResponseWorklists = lazy(
 );
 const OfflineSync = lazy(() => import("./pages/offline/OfflineSync"));
 const NfcTapLanding = lazy(() => import("./pages/nfc/NfcTapLanding"));
+const NfcVaccinesCertificatesPage = lazy(
+  () => import("./pages/nfc/NfcVaccinesCertificatesPage"),
+);
 const NfcScannerPage = lazy(() => import("./pages/nfc/NfcScannerPage"));
 const NfcClinicalRecordPage = lazy(() =>
   import("./pages/nfc/NfcChildWorkflowPage").then((module) => ({
@@ -155,6 +158,14 @@ export default function App() {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/nfc/tap/:publicId" element={<NfcTapLanding />} />
+            <Route
+              path="/nfc/tap/:publicId/vaccines"
+              element={
+                <AuthenticatedRoute>
+                  <NfcVaccinesCertificatesPage />
+                </AuthenticatedRoute>
+              }
+            />
             <Route element={<AuthLayout />}>
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
