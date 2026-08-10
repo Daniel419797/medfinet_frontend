@@ -1,6 +1,7 @@
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useContext, useEffect, useMemo, useState } from "react";
 import { MapPin, ShieldCheck } from "lucide-react";
 import { Modal } from "../common/Modal";
+import UserContext from "../../contexts/UserContext";
 import {
   medfinetClinicalApi,
   type ClinicalTimeline,
@@ -14,7 +15,6 @@ type Props = {
   organizationId: string;
   vaccination: Immunization | null;
   facilities: MedfinetFacility[];
-  currentUserId: string;
   currentUserName: string;
   onClose: () => void;
   onSaved: () => Promise<void> | void;
@@ -80,11 +80,12 @@ export default function VaccinationCertificateMetadataModal({
   organizationId,
   vaccination,
   facilities,
-  currentUserId,
   currentUserName,
   onClose,
   onSaved,
 }: Props) {
+  const { user } = useContext(UserContext);
+  const currentUserId = user?.id || "";
   const [form, setForm] = useState<FormState>(() =>
     initialForm(vaccination, currentUserId),
   );
