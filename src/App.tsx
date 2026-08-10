@@ -70,6 +70,9 @@ const SafetyAdministration = lazy(
 const VaccineScheduleAdministration = lazy(
   () => import("./admin/pages/VaccineScheduleAdministration"),
 );
+const VaccineCertificates = lazy(
+  () => import("./admin/pages/VaccineCertificates"),
+);
 const IdentityIntegrityAdministration = lazy(
   () => import("./admin/pages/IdentityIntegrityAdministration"),
 );
@@ -301,6 +304,7 @@ export default function App() {
               />
               <Route path="caregivers" element={<CaregiverAdministration />} />
               <Route path="clinical" element={<ClinicalOperations />} />
+              <Route path="vaccines" element={<VaccineCertificates />} />
               <Route path="resources" element={<OrganizationResources />} />
               <Route path="analytics" element={<AnalyticsReports />} />
               <Route path="api" element={<IntegrationAdministration />} />
