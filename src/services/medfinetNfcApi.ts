@@ -67,7 +67,17 @@ export type NfcTagWriterCard = {
   limitations: string[];
 };
 
+export type NfcImmunizationRecord = {
+  id: string;
+  vaccineCode: string;
+  doseNumber: number;
+  administeredAt: string;
+  status: string;
+};
+
 export type NfcScanResult = {
+  organizationId: string;
+  accessIntent: 'CLINICAL_SUMMARY' | 'IMMUNIZATION_CERTIFICATES';
   assurance: string;
   child: {
     id: string;
@@ -98,6 +108,7 @@ export type NfcScanResult = {
         status: string;
         dueAt: string;
       }>;
+      records?: NfcImmunizationRecord[];
     };
     consent: { status: string; expiresAt: string | null };
   };
@@ -106,6 +117,14 @@ export type NfcScanResult = {
     recordVaccination?: string;
     emergencyAccess: string;
   };
+};
+
+export type NfcChallengeDevice = {
+  deviceIdentifier: string;
+  displayName: string;
+  platform: string;
+  appVersion: string;
+  publicKey: string;
 };
 
 export const medfinetNfcApi = {
@@ -200,12 +219,19 @@ export const medfinetNfcApi = {
     );
   },
 
-  createChallenge(publicId: string, deviceId: string) {
-    return request<{ challengeToken: string; expiresAt: string }>(
+  createChallenge(publicId: string, device: string | NfcChallengeDevice) {
+    return request<{
+      challengeToken: string;
+      expiresAt: string;
+      deviceId: string;
+      organizationId: string;
+    }>(
       '/nfc/scans/challenges',
       {
         method: 'POST',
-        body: { publicId, deviceId },
+        body: typeof device === 'string'
+          ? { publicId, deviceId: device }
+          : { publicId, device },
         purpose: 'nfc-card-resolution',
       }
     );
@@ -218,12 +244,15 @@ export const medfinetNfcApi = {
     uc: string;
     originalitySignature?: string;
     scanMode?: 'PWA_NDEF' | 'TAGWRITER_NDEF' | 'NATIVE_RAW';
+    accessIntent?: 'IMMUNIZATION_CERTIFICATES';
     deviceSignature: string;
   }) {
     return request<NfcScanResult>('/nfc/scans/resolve', {
       method: 'POST',
       body,
-      purpose: 'nfc-card-resolution',
+      purpose: body.accessIntent === 'IMMUNIZATION_CERTIFICATES'
+        ? 'nfc-immunization-certificate-access'
+        : 'nfc-card-resolution',
     });
   },
 
