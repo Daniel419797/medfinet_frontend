@@ -19,17 +19,29 @@ export type VaccinationCertificateEvidence = {
   chainConfirmed: boolean | null;
 };
 
+export type ClinicalTimeline = {
+  immunizations: Array<{ id: string; vaccineCode: string; doseNumber: number; administeredAt: string; status: string }>;
+  growth: Array<{ id: string; measuredAt: string; weightGrams?: number; heightMillimeters?: number; muacMillimeters?: number; vitaminAAdministered: boolean; oedemaPresent: boolean; notes?: string; status: string }>;
+  alerts: Array<{ id: string; category: string; severity: string; summary: string; status: string }>;
+  allergies: Array<{ id: string; substanceDisplay: string; reaction?: string; severity: string; criticality: string; status: string }>;
+  appointments: Array<{ id: string; kind: string; scheduledFor: string; status: string; notes?: string }>;
+};
+
+type GrowthInput = {
+  measuredAt: string; weightGrams?: number; heightMillimeters?: number;
+  muacMillimeters?: number; vitaminAAdministered?: boolean; oedemaPresent?: boolean; notes?: string; facilityId?: string; sourceOperationId?: string;
+};
+
 export const medfinetClinicalApi = {
   // Timeline
   getClinicalTimeline(orgId: string, childId: string) {
-    return request<{
-      immunizations: Array<{ id: string; vaccineCode: string; doseNumber: number; administeredAt: string; status: string }>;
-      growth: Array<{ id: string; measuredAt: string; weightGrams?: number; heightMillimeters?: number; muacMillimeters?: number; vitaminAAdministered: boolean; oedemaPresent: boolean; notes?: string; status: string }>;
-      alerts: Array<{ id: string; category: string; severity: string; summary: string; status: string }>;
-      allergies: Array<{ id: string; substanceDisplay: string; reaction?: string; severity: string; criticality: string; status: string }>;
-      appointments: Array<{ id: string; kind: string; scheduledFor: string; status: string; notes?: string }>;
-    }>(`/children/${encodeURIComponent(childId)}/clinical-timeline`, {
+    return request<ClinicalTimeline>(`/children/${encodeURIComponent(childId)}/clinical-timeline`, {
       organizationId: orgId, purpose: 'clinical-record-view',
+    });
+  },
+  getNutritionTimeline(orgId: string, childId: string) {
+    return request<ClinicalTimeline>(`/nutrition/children/${encodeURIComponent(childId)}/timeline`, {
+      organizationId: orgId, purpose: 'nutrition-record-view',
     });
   },
 
@@ -69,12 +81,14 @@ export const medfinetClinicalApi = {
   },
 
   // Growth Measurements
-  recordGrowth(orgId: string, childId: string, body: {
-    measuredAt: string; weightGrams?: number; heightMillimeters?: number;
-    muacMillimeters?: number; vitaminAAdministered?: boolean; oedemaPresent?: boolean; notes?: string; facilityId?: string; sourceOperationId?: string;
-  }) {
+  recordGrowth(orgId: string, childId: string, body: GrowthInput) {
     return request<{ id: string }>(`/children/${encodeURIComponent(childId)}/growth-measurements`, {
       method: 'POST', body, organizationId: orgId, purpose: 'growth-recording',
+    });
+  },
+  recordNutritionGrowth(orgId: string, childId: string, body: GrowthInput) {
+    return request<{ id: string }>(`/nutrition/children/${encodeURIComponent(childId)}/growth-measurements`, {
+      method: 'POST', body, organizationId: orgId, purpose: 'nutrition-growth-recording',
     });
   },
   amendGrowth(orgId: string, growthId: string, body: {
@@ -82,6 +96,13 @@ export const medfinetClinicalApi = {
   }) {
     return request(`/growth-measurements/${encodeURIComponent(growthId)}`, {
       method: 'PATCH', body, organizationId: orgId, purpose: 'growth-amendment',
+    });
+  },
+  amendNutritionGrowth(orgId: string, growthId: string, body: {
+    weightGrams?: number; heightMillimeters?: number; reason: string;
+  }) {
+    return request(`/nutrition/growth-measurements/${encodeURIComponent(growthId)}`, {
+      method: 'PATCH', body, organizationId: orgId, purpose: 'nutrition-growth-amendment',
     });
   },
 
