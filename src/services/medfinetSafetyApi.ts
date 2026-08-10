@@ -1,8 +1,10 @@
 import { medfinetRequest } from './medfinetApiClient';
 
 export type ConsentGrant = { id: string; childId: string; recipientType: string; recipientId: string; purpose: string; legalBasis: string; policyVersion: string; captureMethod: string; status: string; startsAt: string; expiresAt?: string | null; grantedByCaregiverId: string; scopes: Array<{ category: string; access: 'READ' | 'WRITE' }> };
+export type ConsentAuthority = { relationship: string; isPrimary: boolean; caregiver: { id: string; firstName: string; lastName: string } };
 export type ChildCredential = { id: string; childId: string; kind: 'QR' | 'NFC' | 'RECOVERY'; status: string; expiresAt?: string | null; lastScannedAt?: string | null; createdAt: string; revokedReason?: string | null };
 export const medfinetSafetyApi = {
+  listConsentAuthorities: (organizationId: string, childId: string) => medfinetRequest<ConsentAuthority[]>(`/children/${childId}/consent-authorities`, { organizationId, purpose: 'consent-administration' }),
   listConsents: (organizationId: string, childId: string) => medfinetRequest<ConsentGrant[]>(`/children/${childId}/consents?includeInactive=true`, { organizationId, purpose: 'consent-administration' }),
   grantConsent: (organizationId: string, childId: string, body: { grantedByCaregiverId: string; recipientType: string; recipientId: string; purpose: string; legalBasis: string; policyVersion: string; captureMethod: string; expiresAt?: string; scopes: Array<{ category: string; access: 'READ' | 'WRITE' }> }) => medfinetRequest<ConsentGrant>(`/children/${childId}/consents`, { method: 'POST', body, organizationId, purpose: 'consent-administration' }),
   withdrawConsent: (organizationId: string, consentId: string, reason: string) => medfinetRequest<ConsentGrant>(`/consents/${consentId}/withdraw`, { method: 'POST', body: { reason }, organizationId, purpose: 'consent-administration' }),
