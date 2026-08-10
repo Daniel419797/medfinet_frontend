@@ -45,6 +45,7 @@ export default function AdminLayout() {
         items: [
           { label: "Operational overview", path: "/admin/dashboard", icon: Gauge, exact: true },
           { label: "Clinical records", path: "/admin/clinical", icon: FirstAidKit },
+          { label: "Vaccines & certificates", path: "/profiles", icon: Syringe },
           { label: "Vaccine schedules", path: "/admin/schedules", icon: Syringe },
           { label: "Climate response", path: "/admin/climate", icon: CloudSun },
           { label: "USSD operations", path: "/admin/ussd", icon: Broadcast },
@@ -57,7 +58,7 @@ export default function AdminLayout() {
           { label: "Team and access", path: "/admin/users", icon: UserGear },
           { label: "Caregivers", path: "/admin/caregivers", icon: UsersThree },
           { label: "Identity integrity", path: "/admin/identity-integrity", icon: Fingerprint },
-          { label: "Child records", path: "/admin/clinical", icon: Baby },
+          { label: "Child records", path: "/profiles", icon: Baby },
         ],
       },
       {
