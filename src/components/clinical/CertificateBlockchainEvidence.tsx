@@ -5,43 +5,38 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
-import type { VaccinationCertificateEvidence } from "../../services/medfinetClinicalApi";
+import type {
+  CertificateNftEvidence,
+  VaccinationCertificateEvidence,
+} from "../../services/medfinetClinicalApi";
 
-export type CertificateNftEvidence = {
-  status:
-    | "DISABLED"
-    | "PENDING"
-    | "CONFIRMED"
-    | "UNCONFIRMED"
-    | "MISMATCH"
-    | "UNAVAILABLE";
-  reason?: string | null;
-  queued: boolean;
-  assetId: string | null;
-  mintTxId: string | null;
-  blockHeight: string | null;
-  confirmedAt: string | null;
-  network: string | null;
-  networkId: string | null;
-  explorerUrl: string | null;
-  receiptIntegrity: boolean | null;
-  networkIntegrity: boolean | null;
-  transactionIntegrity: boolean | null;
-  assetIntegrity: boolean | null;
-  metadataIntegrity: boolean | null;
-  supplyIntegrity: boolean | null;
-  immutableIntegrity: boolean | null;
-  chainConfirmed: boolean | null;
-  verified: boolean;
-};
-
+export type { CertificateNftEvidence };
 export type ExtendedVaccinationCertificateEvidence =
-  VaccinationCertificateEvidence & {
-    nft?: CertificateNftEvidence;
+  VaccinationCertificateEvidence;
+
+export function unavailableEvidence(
+  recordId: string,
+): VaccinationCertificateEvidence {
+  return {
+    recordId,
+    fingerprint: "",
+    anchorId: "",
+    status: "UNAVAILABLE",
+    queued: false,
+    network: null,
+    txId: null,
+    blockHeight: null,
+    confirmedAt: null,
+    explorerUrl: null,
+    hashIntegrity: null,
+    noteIntegrity: null,
+    chainConfirmed: null,
+    reason: "CERTIFICATE_EVIDENCE_UNAVAILABLE",
   };
+}
 
 type Props = {
-  evidence: ExtendedVaccinationCertificateEvidence;
+  evidence: VaccinationCertificateEvidence;
   busy?: boolean;
   onRefresh?: () => void;
   tone?: "light" | "dark";
@@ -89,10 +84,15 @@ export default function CertificateBlockchainEvidence({
   const dark = tone === "dark";
   const nft = evidence.nft;
   const anchorConfirmed = evidence.status === "CONFIRMED";
-  const nftConfirmed = nft?.status === "CONFIRMED" && nft.verified === true;
+  const nftStatus = nft
+    ? nft.status === "CONFIRMED" && nft.verified !== true
+      ? "PENDING"
+      : nft.status
+    : "UNAVAILABLE";
+  const nftConfirmed = nftStatus === "CONFIRMED" && nft?.verified === true;
   const heading = anchorConfirmed && nftConfirmed
     ? "Blockchain evidence confirmed"
-    : evidence.status === "MISMATCH" || nft?.status === "MISMATCH"
+    : evidence.status === "MISMATCH" || nftStatus === "MISMATCH"
       ? "Blockchain evidence mismatch"
       : "Blockchain evidence processing";
 
@@ -175,25 +175,22 @@ export default function CertificateBlockchainEvidence({
         </article>
 
         <article
-          className={`rounded-xl border p-3 ${statusClass(
-            nft?.status || "UNAVAILABLE",
-            dark,
-          )}`}
+          className={`rounded-xl border p-3 ${statusClass(nftStatus, dark)}`}
         >
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs font-bold uppercase tracking-wide">Certificate NFT</p>
             <span className="rounded-full border border-current/20 px-2 py-0.5 text-[11px] font-bold">
-              {nft ? statusLabel(nft.status) : "Unavailable"}
+              {statusLabel(nftStatus)}
             </span>
           </div>
           <p className="mt-2 text-xs opacity-80">
-            {nft?.status === "CONFIRMED"
+            {nftStatus === "CONFIRMED"
               ? "Immutable 1-of-1 Algorand certificate asset"
-              : nft?.status === "PENDING"
+              : nftStatus === "PENDING"
                 ? "Mint request is queued or awaiting confirmation"
-                : nft?.status === "UNCONFIRMED"
+                : nftStatus === "UNCONFIRMED"
                   ? "Asset evidence matches, but the mint is not yet confirmed"
-                  : nft?.status === "DISABLED"
+                  : nftStatus === "DISABLED"
                     ? "NFT minting is disabled for this environment"
                     : "NFT evidence is not confirmed yet"}
           </p>
@@ -225,7 +222,10 @@ export default function CertificateBlockchainEvidence({
       >
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
         <span>
-          Fingerprint <span className="font-mono">{evidence.fingerprint || "pending"}</span>.
+          Fingerprint{" "}
+          <span className="break-all font-mono">
+            {evidence.fingerprint || "pending"}
+          </span>.
           No child name, DOB, vaccine, facility or certificate PNG is stored in the NFT.
         </span>
       </div>
