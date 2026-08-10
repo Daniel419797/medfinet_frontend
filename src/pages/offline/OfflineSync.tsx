@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 import {
@@ -36,6 +37,7 @@ import {
   rememberOfflineDevice,
   syncOfflineQueue,
 } from "../../services/offlineSyncService";
+import { canWriteClinical } from "../../utils/clinicalAccess";
 
 type Payload = Record<string, string | number | boolean>;
 
@@ -133,15 +135,21 @@ function isoPayload(type: SyncOperationType, payload: Payload) {
 }
 
 export default function OfflineSync() {
-  const { organizationId, user } = useContext(UserContext);
+  const { organizationId, user, currentMembership } = useContext(UserContext);
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const pwaSurface = location.pathname.startsWith("/nfc/");
   const online = useOnlineStatus();
+  const availableTypes = useMemo(
+    () => canWriteClinical(currentMembership?.role)
+      ? types
+      : types.filter((type) => type !== "CLINICAL.IMMUNIZATION_RECORD"),
+    [currentMembership?.role],
+  );
   const requestedType = searchParams.get("type") as SyncOperationType | null;
-  const initialType = requestedType && types.includes(requestedType)
+  const initialType = requestedType && availableTypes.includes(requestedType)
     ? requestedType
-    : "CLINICAL.IMMUNIZATION_RECORD";
+    : availableTypes[0];
   const requestedChildId = searchParams.get("childId") || "";
   const [devices, setDevices] = useState<Array<Record<string, unknown>>>([]);
   const [deviceId, setDeviceId] = useState("");
@@ -210,6 +218,13 @@ export default function OfflineSync() {
   }, [load]);
 
   useEffect(() => {
+    if (availableTypes.includes(operationType)) return;
+    const next = availableTypes[0];
+    setOperationType(next);
+    setPayload({ ...templates[next] });
+  }, [availableTypes, operationType]);
+
+  useEffect(() => {
     if (!organizationId || !user) return;
     const handleCompleted = (event: Event) => {
       const completed = (event as CustomEvent<{
@@ -240,6 +255,9 @@ export default function OfflineSync() {
     event.preventDefault();
     setError(null);
     try {
+      if (!availableTypes.includes(operationType)) {
+        throw new Error("Your role cannot queue this clinical operation.");
+      }
       const operation: SyncOperationInput = {
         clientOperationId: crypto.randomUUID(),
         operationType,
@@ -465,7 +483,7 @@ export default function OfflineSync() {
                 setPayload({ ...templates[next] });
               }}
             >
-              {types.map((type) => <option key={type}>{type}</option>)}
+              {availableTypes.map((type) => <option key={type}>{type}</option>)}
             </select>
           </label>
 

@@ -5,6 +5,10 @@ import { UserProvider } from "./contexts/UserContext";
 import { AuthenticatedRoute } from "./components/auth/AuthenticatedRoute";
 import { WorkspaceRedirect } from "./components/auth/WorkspaceRedirect";
 import { OfflineSyncCoordinator } from "./components/offline/OfflineSyncCoordinator";
+import {
+  CLINICAL_READ_ROLES,
+  CLINICAL_WRITE_ROLES,
+} from "./utils/clinicalAccess";
 import AuthLayout from "./layouts/AuthLayout";
 import DashboardLayout from "./layouts/DashboardLayout";
 import HealthWorkerLayout from "./layouts/HealthWorkerLayout";
@@ -238,7 +242,14 @@ export default function App() {
             >
               <Route index element={<Navigate to="clinical" replace />} />
               <Route path="dashboard" element={<HealthWorkerDashboard />} />
-              <Route path="clinical" element={<ClinicalOperations />} />
+              <Route
+                path="clinical"
+                element={
+                  <AuthenticatedRoute roles={[...CLINICAL_WRITE_ROLES]}>
+                    <ClinicalOperations />
+                  </AuthenticatedRoute>
+                }
+              />
               <Route path="climate" element={<ResponseWorklists />} />
               <Route path="offline" element={<OfflineSync />} />
               <Route path="nfc" element={<NfcScannerPage />} />
@@ -246,11 +257,19 @@ export default function App() {
               <Route path="ai/timeline" element={<AiTimelineSummary />} />
               <Route
                 path="nfc/children/:childId/clinical"
-                element={<NfcClinicalRecordPage />}
+                element={
+                  <AuthenticatedRoute roles={[...CLINICAL_READ_ROLES]}>
+                    <NfcClinicalRecordPage />
+                  </AuthenticatedRoute>
+                }
               />
               <Route
                 path="nfc/children/:childId/vaccination"
-                element={<NfcVaccinationPage />}
+                element={
+                  <AuthenticatedRoute roles={[...CLINICAL_WRITE_ROLES]}>
+                    <NfcVaccinationPage />
+                  </AuthenticatedRoute>
+                }
               />
               <Route
                 path="nfc/children/:childId/emergency"

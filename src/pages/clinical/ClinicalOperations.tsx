@@ -10,6 +10,7 @@ import {
   Activity,
   AlertTriangle,
   CalendarPlus,
+  Pencil,
   Plus,
   RefreshCw,
   Search,
@@ -20,8 +21,12 @@ import UserContext from "../../contexts/UserContext";
 import { Modal } from "../../components/common/Modal";
 import { ActionReasonModal } from "../../components/common/ActionReasonModal";
 import { PageFeedback } from "../../components/common/PageFeedback";
-import { medfinetClinicalApi } from "../../services/medfinetClinicalApi";
+import {
+  type ClinicalImmunization,
+  medfinetClinicalApi,
+} from "../../services/medfinetClinicalApi";
 import { medfinetIdentityApi } from "../../services/medfinetIdentityApi";
+import { canWriteClinical } from "../../utils/clinicalAccess";
 
 type Child = Awaited<
   ReturnType<typeof medfinetIdentityApi.listChildren>
@@ -72,8 +77,30 @@ const initialForms = {
   appointment: { kind: "VACCINATION", scheduledFor: "", notes: "" },
 };
 
+type ImmunizationAmendmentForm = {
+  vaccineCode: string;
+  doseNumber: string;
+  administeredAt: string;
+  lotNumber: string;
+  route: string;
+  site: string;
+  notes: string;
+  reason: string;
+};
+
+const emptyAmendmentForm: ImmunizationAmendmentForm = {
+  vaccineCode: "",
+  doseNumber: "1",
+  administeredAt: "",
+  lotNumber: "",
+  route: "",
+  site: "",
+  notes: "",
+  reason: "",
+};
+
 export default function ClinicalOperations() {
-  const { organizationId } = useContext(UserContext);
+  const { organizationId, currentMembership } = useContext(UserContext);
   const [children, setChildren] = useState<Child[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [timeline, setTimeline] = useState<Timeline | null>(null);
@@ -96,6 +123,11 @@ export default function ClinicalOperations() {
     kind: "alert" | "allergy";
     id: string;
   } | null>(null);
+  const [amendTarget, setAmendTarget] = useState<ClinicalImmunization | null>(
+    null,
+  );
+  const [amendmentForm, setAmendmentForm] =
+    useState<ImmunizationAmendmentForm>(emptyAmendmentForm);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,6 +140,7 @@ export default function ClinicalOperations() {
   });
   const [forms, setForms] = useState(initialForms);
   const selected = children.find((child) => child.id === selectedId) || null;
+  const mayWriteClinical = canWriteClinical(currentMembership?.role);
 
   const loadChildren = useCallback(async () => {
     if (!organizationId) return;
@@ -180,10 +213,12 @@ export default function ClinicalOperations() {
       await operation();
       setNotice(message);
       await loadRecord();
+      return true;
     } catch (reason) {
       setError(
         reason instanceof Error ? reason.message : "Clinical operation failed",
       );
+      return false;
     } finally {
       setBusy(false);
     }
@@ -220,7 +255,7 @@ export default function ClinicalOperations() {
   const createRecord = async (event: FormEvent) => {
     event.preventDefault();
     if (!organizationId || !selectedId || !recordKind) return;
-    const op =
+    const operation = () =>
       recordKind === "immunization"
         ? medfinetClinicalApi.recordImmunization(organizationId, selectedId, {
             ...forms.immunization,
@@ -231,6 +266,7 @@ export default function ClinicalOperations() {
             lotNumber: forms.immunization.lotNumber || undefined,
             site: forms.immunization.site || undefined,
             notes: forms.immunization.notes || undefined,
+            sourceOperationId: crypto.randomUUID(),
           })
         : recordKind === "growth"
           ? medfinetClinicalApi.recordGrowth(organizationId, selectedId, {
@@ -272,9 +308,66 @@ export default function ClinicalOperations() {
                     notes: forms.appointment.notes || undefined,
                   },
                 );
-    await run(() => op, `${recordKind} recorded with an audit event.`);
-    setRecordKind(null);
-    setForms(initialForms);
+    const saved = await run(
+      operation,
+      `${recordKind} recorded with audit and integrity evidence.`,
+    );
+    if (saved) {
+      setRecordKind(null);
+      setForms(initialForms);
+    }
+  };
+
+  const openImmunizationAmendment = (record: ClinicalImmunization) => {
+    setAmendTarget(record);
+    setAmendmentForm({
+      vaccineCode: record.vaccineCode,
+      doseNumber: String(record.doseNumber),
+      administeredAt: new Date(record.administeredAt)
+        .toISOString()
+        .slice(0, 10),
+      lotNumber: record.lotNumber || "",
+      route: record.route || "",
+      site: record.site || "",
+      notes: record.notes || "",
+      reason: "",
+    });
+  };
+
+  function setAmendmentValue<Key extends keyof ImmunizationAmendmentForm>(
+    key: Key,
+    value: ImmunizationAmendmentForm[Key],
+  ) {
+    setAmendmentForm((current) => ({ ...current, [key]: value }));
+  }
+
+  const amendImmunization = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!organizationId || !amendTarget || !mayWriteClinical) return;
+    const saved = await run(
+      () =>
+        medfinetClinicalApi.amendImmunization(
+          organizationId,
+          amendTarget.id,
+          {
+            vaccineCode: amendmentForm.vaccineCode,
+            doseNumber: Number(amendmentForm.doseNumber),
+            administeredAt: new Date(
+              `${amendmentForm.administeredAt}T12:00:00Z`,
+            ).toISOString(),
+            lotNumber: amendmentForm.lotNumber,
+            route: amendmentForm.route,
+            site: amendmentForm.site,
+            notes: amendmentForm.notes,
+            reason: amendmentForm.reason,
+          },
+        ),
+      "Immunization amended with before-and-after audit evidence.",
+    );
+    if (saved) {
+      setAmendTarget(null);
+      setAmendmentForm(emptyAmendmentForm);
+    }
   };
   const updateAppointment = (
     id: string,
@@ -374,6 +467,9 @@ export default function ClinicalOperations() {
             id: string;
             status: string;
           };
+          const immunization = tab === "immunizations"
+            ? (raw as ClinicalImmunization)
+            : null;
           return (
             <article key={item.id} className="rounded-xl border bg-white p-4">
               <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
@@ -392,6 +488,19 @@ export default function ClinicalOperations() {
                   <p className="text-sm text-slate-600">
                     {String(item.summary || item.reaction || item.notes || "")}
                   </p>
+                  {immunization ? (
+                    <p className="text-sm text-slate-600">
+                      {[
+                        immunization.lotNumber
+                          ? `Lot ${immunization.lotNumber}`
+                          : null,
+                        immunization.route || null,
+                        immunization.site || null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || "No administration details recorded"}
+                    </p>
+                  ) : null}
                   <p className="text-xs text-slate-500">
                     {item.status} ·{" "}
                     {new Date(
@@ -405,6 +514,19 @@ export default function ClinicalOperations() {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  {immunization &&
+                    mayWriteClinical &&
+                    ["ACTIVE", "AMENDED"].includes(immunization.status) ? (
+                      <button
+                        type="button"
+                        className={button}
+                        disabled={busy}
+                        onClick={() => openImmunizationAmendment(immunization)}
+                      >
+                        <Pencil className="mr-2 inline h-4 w-4" />
+                        Amend
+                      </button>
+                    ) : null}
                   {tab === "alerts" && item.status === "ACTIVE" && (
                     <button
                       className={button}
@@ -762,6 +884,64 @@ export default function ClinicalOperations() {
                   }
                 />
               </label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="text-sm font-semibold">
+                  Route
+                  <select
+                    className={input}
+                    value={forms.immunization.route}
+                    onChange={(e) =>
+                      setForms({
+                        ...forms,
+                        immunization: {
+                          ...forms.immunization,
+                          route: e.target.value,
+                        },
+                      })
+                    }
+                  >
+                    <option value="IM">Intramuscular (IM)</option>
+                    <option value="SC">Subcutaneous (SC)</option>
+                    <option value="ORAL">Oral</option>
+                    <option value="ID">Intradermal (ID)</option>
+                    <option value="INTRANASAL">Intranasal</option>
+                  </select>
+                </label>
+                <label className="text-sm font-semibold">
+                  Administration site
+                  <input
+                    className={input}
+                    placeholder="e.g. left thigh"
+                    value={forms.immunization.site}
+                    onChange={(e) =>
+                      setForms({
+                        ...forms,
+                        immunization: {
+                          ...forms.immunization,
+                          site: e.target.value,
+                        },
+                      })
+                    }
+                  />
+                </label>
+              </div>
+              <label className="block text-sm font-semibold">
+                Clinical notes
+                <textarea
+                  className={input}
+                  maxLength={1000}
+                  value={forms.immunization.notes}
+                  onChange={(e) =>
+                    setForms({
+                      ...forms,
+                      immunization: {
+                        ...forms.immunization,
+                        notes: e.target.value,
+                      },
+                    })
+                  }
+                />
+              </label>
             </>
           ) : recordKind === "growth" ? (
             <>
@@ -1064,6 +1244,122 @@ export default function ClinicalOperations() {
           ) : null}
           <button className={primary} disabled={busy}>
             Save clinical record
+          </button>
+        </form>
+      </Modal>
+      <Modal
+        open={Boolean(amendTarget)}
+        onClose={() => {
+          if (busy) return;
+          setAmendTarget(null);
+          setAmendmentForm(emptyAmendmentForm);
+        }}
+        title="Amend immunization"
+        description="Correct the record without deleting its history. Medfinet stores the previous values, replacement values, reason and author."
+      >
+        <form className="space-y-4" onSubmit={(event) => void amendImmunization(event)}>
+          <label className="block text-sm font-semibold">
+            Vaccine code
+            <input
+              required
+              maxLength={60}
+              className={input}
+              value={amendmentForm.vaccineCode}
+              onChange={(event) =>
+                setAmendmentValue("vaccineCode", event.target.value)
+              }
+            />
+          </label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="text-sm font-semibold">
+              Dose number
+              <input
+                required
+                type="number"
+                min="1"
+                max="20"
+                className={input}
+                value={amendmentForm.doseNumber}
+                onChange={(event) =>
+                  setAmendmentValue("doseNumber", event.target.value)
+                }
+              />
+            </label>
+            <label className="text-sm font-semibold">
+              Date administered
+              <input
+                required
+                type="date"
+                max={new Date().toISOString().slice(0, 10)}
+                className={input}
+                value={amendmentForm.administeredAt}
+                onChange={(event) =>
+                  setAmendmentValue("administeredAt", event.target.value)
+                }
+              />
+            </label>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="text-sm font-semibold">
+              Lot number
+              <input
+                maxLength={100}
+                className={input}
+                value={amendmentForm.lotNumber}
+                onChange={(event) =>
+                  setAmendmentValue("lotNumber", event.target.value)
+                }
+              />
+            </label>
+            <label className="text-sm font-semibold">
+              Route
+              <input
+                maxLength={80}
+                className={input}
+                value={amendmentForm.route}
+                onChange={(event) =>
+                  setAmendmentValue("route", event.target.value)
+                }
+              />
+            </label>
+          </div>
+          <label className="block text-sm font-semibold">
+            Administration site
+            <input
+              maxLength={80}
+              className={input}
+              value={amendmentForm.site}
+              onChange={(event) =>
+                setAmendmentValue("site", event.target.value)
+              }
+            />
+          </label>
+          <label className="block text-sm font-semibold">
+            Clinical notes
+            <textarea
+              maxLength={1000}
+              className={input}
+              value={amendmentForm.notes}
+              onChange={(event) =>
+                setAmendmentValue("notes", event.target.value)
+              }
+            />
+          </label>
+          <label className="block text-sm font-semibold">
+            Reason for amendment
+            <textarea
+              required
+              minLength={3}
+              maxLength={1000}
+              className={input}
+              value={amendmentForm.reason}
+              onChange={(event) =>
+                setAmendmentValue("reason", event.target.value)
+              }
+            />
+          </label>
+          <button className={primary} disabled={busy}>
+            {busy ? "Saving amendment…" : "Save amendment"}
           </button>
         </form>
       </Modal>
