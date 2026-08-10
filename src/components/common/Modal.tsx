@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { X } from "@phosphor-icons/react";
 
 const focusableSelector = [
@@ -30,18 +31,41 @@ export function Modal({
 
   useEffect(() => {
     if (!open) return undefined;
+
     const previouslyFocused = document.activeElement as HTMLElement | null;
-    const previousOverflow = document.body.style.overflow;
-    const dialog = dialogRef.current;
-    document.body.style.overflow = "hidden";
-    dialog?.querySelector<HTMLElement>(focusableSelector)?.focus();
+    const scrollY = window.scrollY;
+    const html = document.documentElement;
+    const body = document.body;
+    const previousHtmlOverflow = html.style.overflow;
+    const previousBodyOverflow = body.style.overflow;
+    const previousBodyPosition = body.style.position;
+    const previousBodyTop = body.style.top;
+    const previousBodyLeft = body.style.left;
+    const previousBodyRight = body.style.right;
+    const previousBodyWidth = body.style.width;
+
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+
+    const focusTimer = window.setTimeout(() => {
+      dialogRef.current
+        ?.querySelector<HTMLElement>(focusableSelector)
+        ?.focus();
+    }, 0);
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      const dialog = dialogRef.current;
       if (event.key === "Escape") {
         onCloseRef.current();
         return;
       }
       if (event.key !== "Tab" || !dialog) return;
+
       const focusable = Array.from(
         dialog.querySelectorAll<HTMLElement>(focusableSelector),
       );
@@ -50,6 +74,7 @@ export function Modal({
         dialog.focus();
         return;
       }
+
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
       if (event.shiftKey && document.activeElement === first) {
@@ -63,16 +88,25 @@ export function Modal({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => {
+      window.clearTimeout(focusTimer);
       document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousOverflow;
+      html.style.overflow = previousHtmlOverflow;
+      body.style.overflow = previousBodyOverflow;
+      body.style.position = previousBodyPosition;
+      body.style.top = previousBodyTop;
+      body.style.left = previousBodyLeft;
+      body.style.right = previousBodyRight;
+      body.style.width = previousBodyWidth;
+      window.scrollTo(0, scrollY);
       previouslyFocused?.focus();
     };
   }, [open]);
 
-  if (!open) return null;
-  return (
+  if (!open || typeof document === "undefined") return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-hidden bg-[#071d38]/65 p-2 backdrop-blur-[2px] sm:items-center sm:p-4"
+      className="fixed inset-0 z-[9999] flex h-[100dvh] w-screen items-start justify-center overflow-hidden bg-[#071d38]/65 p-2 backdrop-blur-[2px] sm:items-center sm:p-4"
       onMouseDown={onClose}
     >
       <section
@@ -111,6 +145,7 @@ export function Modal({
           {children}
         </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
