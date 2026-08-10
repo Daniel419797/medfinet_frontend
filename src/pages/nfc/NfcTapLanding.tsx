@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import {
   Loader2,
   LockKeyhole,
@@ -16,6 +16,10 @@ import {
   signNfcPayload,
   stableDeviceIdentifier,
 } from "../../services/nfcDeviceKeyStore";
+import {
+  clearNfcVaccineAccess,
+  storeNfcVaccineAccess,
+} from "../../services/nfcSecureAccessStore";
 
 type TapCard = {
   publicId: string;
@@ -105,9 +109,19 @@ export default function NfcTapLanding() {
   } = useContext(UserContext);
   const [card, setCard] = useState<TapCard | null>(null);
   const [state, setState] = useState<State>({ kind: "loading" });
+  const [retryNonce, setRetryNonce] = useState(0);
+  const mountedRef = useRef(true);
+  const accessRequestRef = useRef(0);
 
   const requestedAccess =
     new URLSearchParams(location.search).get("access") === VACCINE_ACCESS_QUERY;
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      accessRequestRef.current += 1;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -115,6 +129,7 @@ export default function NfcTapLanding() {
 
     const recognizeCurrentTap = async () => {
       const currentRequest = ++requestNumber;
+      clearNfcVaccineAccess(publicId);
       const currentCard = readTapCard(publicId);
       if (!currentCard) {
         if (active) {
@@ -159,7 +174,7 @@ export default function NfcTapLanding() {
       active = false;
       window.removeEventListener("hashchange", onHashChange);
     };
-  }, [publicId]);
+  }, [publicId, retryNonce]);
 
   useEffect(() => {
     if (!requestedAccess || !sessionReady || state.kind !== "verified") return;
@@ -171,6 +186,10 @@ export default function NfcTapLanding() {
     }
 
     if (state.status !== "ACTIVE" || !card) return;
+
+    const requestId = ++accessRequestRef.current;
+    const current = () =>
+      mountedRef.current && requestId === accessRequestRef.current;
 
     setState({ kind: "resolving" });
     void (async () => {
@@ -198,6 +217,8 @@ export default function NfcTapLanding() {
           accessIntent: "IMMUNIZATION_CERTIFICATES",
         });
 
+        if (!current()) return;
+
         if (result.clinicalSummary.clinicalAccess !== "ALLOWED") {
           setState({
             kind: "error",
@@ -209,16 +230,21 @@ export default function NfcTapLanding() {
 
         setOrganizationId(result.organizationId);
         const childName = `${result.child.firstName || ""} ${result.child.lastName || ""}`.trim();
+        storeNfcVaccineAccess(publicId, {
+          organizationId: result.organizationId,
+          childId: result.child.id,
+          childName: childName || undefined,
+          immunizations: result.clinicalSummary.vaccination.records || [],
+        });
+        if (!current()) {
+          clearNfcVaccineAccess(publicId);
+          return;
+        }
         navigate(`/nfc/tap/${encodeURIComponent(publicId)}/vaccines`, {
           replace: true,
-          state: {
-            organizationId: result.organizationId,
-            childId: result.child.id,
-            childName: childName || undefined,
-            immunizations: result.clinicalSummary.vaccination.records || [],
-          },
         });
       } catch (error) {
+        if (!current()) return;
         setState({
           kind: "error",
           message:
@@ -241,7 +267,14 @@ export default function NfcTapLanding() {
 
   function requestVaccinationAccess() {
     const next = `/nfc/tap/${encodeURIComponent(publicId)}?access=${VACCINE_ACCESS_QUERY}`;
+    // Re-enter credentials even when a session already exists. NFC clinical access
+    // is intentionally a fresh authentication step requested by the product flow.
     navigate(`/login?next=${encodeURIComponent(next)}`);
+  }
+
+  function retryCard() {
+    navigate(`/nfc/tap/${encodeURIComponent(publicId)}`, { replace: true });
+    setRetryNonce((value) => value + 1);
   }
 
   return (
@@ -332,7 +365,7 @@ export default function NfcTapLanding() {
               </p>
               <button
                 type="button"
-                onClick={() => navigate(`/nfc/tap/${encodeURIComponent(publicId)}`, { replace: true })}
+                onClick={retryCard}
                 className="mt-4 rounded-xl border border-rose-300/40 px-4 py-2.5 text-sm font-semibold text-rose-100 hover:bg-rose-500/10"
               >
                 Back to card
