@@ -43,6 +43,17 @@ const button =
   "rounded-lg border bg-white px-3 py-2 text-sm font-semibold disabled:opacity-50";
 const primary =
   "rounded-lg bg-cyan-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50";
+const nfcClinicalScopes = [
+  { category: "IMMUNIZATION", access: "READ" as const },
+  { category: "NUTRITION", access: "READ" as const },
+  { category: "CLINICAL_ALERTS", access: "READ" as const },
+  { category: "APPOINTMENTS", access: "READ" as const },
+];
+const vaccinationCertificateScopes = [
+  { category: "IDENTITY", access: "READ" as const },
+  { category: "DEMOGRAPHICS", access: "READ" as const },
+  { category: "IMMUNIZATION", access: "READ" as const },
+];
 export default function SafetyAdministration() {
   const { organizationId } = useContext(UserContext);
   const [tab, setTab] = useState<Tab>("emergency");
@@ -79,6 +90,7 @@ export default function SafetyAdministration() {
     | null
   >(null);
   const [consentForm, setConsentForm] = useState({
+    bundle: "NFC_VACCINATION" as "NFC_VACCINATION" | "CUSTOM",
     grantedByCaregiverId: "",
     recipientType: "ORGANIZATION",
     recipientId: "",
@@ -108,24 +120,23 @@ export default function SafetyAdministration() {
       const selected = childId || childPage.items[0]?.id || "";
       setChildId(selected);
       if (selected) {
-        const [grantRows, credentialRows, childRecord] = await Promise.all([
+        const [grantRows, credentialRows, authorityRows] = await Promise.all([
           medfinetSafetyApi.listConsents(organizationId, selected),
           medfinetSafetyApi.listCredentials(organizationId, selected),
-          medfinetIdentityApi.getChild(organizationId, selected),
+          medfinetSafetyApi.listConsentAuthorities(organizationId, selected),
         ]);
         setConsents(grantRows);
         setCredentials(credentialRows);
-        const authorities = childRecord.caregivers
-          .filter((link) => link.hasConsentAuthority)
-          .map((link) => ({
-            id: link.caregiver.id,
-            firstName: link.caregiver.firstName,
-            lastName: link.caregiver.lastName,
-            relationship: link.relationship,
-          }));
+        const authorities = authorityRows.map((link) => ({
+          id: link.caregiver.id,
+          firstName: link.caregiver.firstName,
+          lastName: link.caregiver.lastName,
+          relationship: link.relationship,
+        }));
         setConsentCaregivers(authorities);
         setConsentForm((current) => ({
           ...current,
+          recipientId: current.recipientId || organizationId,
           grantedByCaregiverId: authorities.some(
             (caregiver) => caregiver.id === current.grantedByCaregiverId,
           )
@@ -167,17 +178,39 @@ export default function SafetyAdministration() {
     setBusy(true);
     setError(null);
     try {
-      if (tab === "consents")
-        await medfinetSafetyApi.grantConsent(organizationId, childId, {
-          ...consentForm,
+      if (tab === "consents") {
+        const common = {
+          grantedByCaregiverId: consentForm.grantedByCaregiverId,
+          recipientType: consentForm.recipientType,
+          recipientId: consentForm.recipientId,
+          legalBasis: consentForm.legalBasis,
+          policyVersion: consentForm.policyVersion,
+          captureMethod: consentForm.captureMethod,
           expiresAt: consentForm.expiresAt
             ? new Date(consentForm.expiresAt).toISOString()
             : undefined,
-          scopes: [
-            { category: consentForm.category, access: consentForm.access },
-          ],
-        });
-      else {
+        };
+        if (consentForm.bundle === "NFC_VACCINATION") {
+          await medfinetSafetyApi.grantConsent(organizationId, childId, {
+            ...common,
+            purpose: "clinical-record-view",
+            scopes: nfcClinicalScopes,
+          });
+          await medfinetSafetyApi.grantConsent(organizationId, childId, {
+            ...common,
+            purpose: "vaccination-certificate-download",
+            scopes: vaccinationCertificateScopes,
+          });
+        } else {
+          await medfinetSafetyApi.grantConsent(organizationId, childId, {
+            ...common,
+            purpose: consentForm.purpose,
+            scopes: [
+              { category: consentForm.category, access: consentForm.access },
+            ],
+          });
+        }
+      } else {
         const result = await medfinetSafetyApi.issueCredential(
           organizationId,
           childId,
@@ -192,7 +225,9 @@ export default function SafetyAdministration() {
       }
       setNotice(
         tab === "consents"
-          ? "Consent grant recorded and queued for anchoring."
+          ? consentForm.bundle === "NFC_VACCINATION"
+            ? "Clinical and vaccination-certificate consent grants are active and queued for anchoring."
+            : "Consent grant recorded and queued for anchoring."
           : "Credential issued. Copy the token now; it will not be shown again.",
       );
       setOpen(false);
@@ -429,6 +464,30 @@ export default function SafetyAdministration() {
           {tab === "consents" ? (
             <>
               <label className="block text-sm font-semibold">
+                Disclosure bundle
+                <select
+                  className={input}
+                  value={consentForm.bundle}
+                  onChange={(e) =>
+                    setConsentForm({
+                      ...consentForm,
+                      bundle: e.target.value as "NFC_VACCINATION" | "CUSTOM",
+                    })
+                  }
+                >
+                  <option value="NFC_VACCINATION">
+                    NFC clinical record + vaccination certificate
+                  </option>
+                  <option value="CUSTOM">Custom single scope</option>
+                </select>
+                {consentForm.bundle === "NFC_VACCINATION" && (
+                  <span className="mt-2 block text-xs font-normal text-slate-600">
+                    Records the two narrow read grants required to view the
+                    clinical timeline and download its vaccination certificate.
+                  </span>
+                )}
+              </label>
+              <label className="block text-sm font-semibold">
                 Caregiver with consent authority
                 <select
                   required
@@ -490,52 +549,59 @@ export default function SafetyAdministration() {
                   />
                 </label>
               </div>
-              <label className="block text-sm font-semibold">
-                Purpose
-                <input
-                  required
-                  className={input}
-                  value={consentForm.purpose}
-                  onChange={(e) =>
-                    setConsentForm({ ...consentForm, purpose: e.target.value })
-                  }
-                />
-              </label>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="text-sm font-semibold">
-                  Category
-                  <select
-                    className={input}
-                    value={consentForm.category}
-                    onChange={(e) =>
-                      setConsentForm({
-                        ...consentForm,
-                        category: e.target.value,
-                      })
-                    }
-                  >
-                    {categories.map((x) => (
-                      <option key={x}>{x}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-sm font-semibold">
-                  Access
-                  <select
-                    className={input}
-                    value={consentForm.access}
-                    onChange={(e) =>
-                      setConsentForm({
-                        ...consentForm,
-                        access: e.target.value as "READ" | "WRITE",
-                      })
-                    }
-                  >
-                    <option>READ</option>
-                    <option>WRITE</option>
-                  </select>
-                </label>
-              </div>
+              {consentForm.bundle === "CUSTOM" && (
+                <>
+                  <label className="block text-sm font-semibold">
+                    Purpose
+                    <input
+                      required
+                      className={input}
+                      value={consentForm.purpose}
+                      onChange={(e) =>
+                        setConsentForm({
+                          ...consentForm,
+                          purpose: e.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="text-sm font-semibold">
+                      Category
+                      <select
+                        className={input}
+                        value={consentForm.category}
+                        onChange={(e) =>
+                          setConsentForm({
+                            ...consentForm,
+                            category: e.target.value,
+                          })
+                        }
+                      >
+                        {categories.map((x) => (
+                          <option key={x}>{x}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="text-sm font-semibold">
+                      Access
+                      <select
+                        className={input}
+                        value={consentForm.access}
+                        onChange={(e) =>
+                          setConsentForm({
+                            ...consentForm,
+                            access: e.target.value as "READ" | "WRITE",
+                          })
+                        }
+                      >
+                        <option>READ</option>
+                        <option>WRITE</option>
+                      </select>
+                    </label>
+                  </div>
+                </>
+              )}
               <label className="block text-sm font-semibold">
                 Legal basis
                 <input
