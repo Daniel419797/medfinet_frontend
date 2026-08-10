@@ -23,7 +23,9 @@ export default function Login() {
       try {
         await refreshSession();
       } catch {
-        setError("You are signed in, but Medfinet could not load your organization access. Retry or contact your administrator.");
+        setError(
+          "You are signed in, but Medfinet could not load your organization access. Retry or contact your administrator.",
+        );
         return;
       }
       navigate("/workspace", { replace: true });
@@ -33,7 +35,6 @@ export default function Login() {
           ? reason.message
           : "Sign-in failed. Check your credentials or confirm your email, then try again.",
       );
-      setError("Medfinet could not reach the identity service. Check your connection and try again.");
     } finally {
       setBusy(false);
     }
@@ -42,7 +43,9 @@ export default function Login() {
   return (
     <div className="p-6 sm:p-8">
       <p className="mf-eyebrow">Secure workspace</p>
-      <h1 className="mt-2 text-2xl font-extrabold text-slate-950 dark:text-white">Welcome back</h1>
+      <h1 className="mt-2 text-2xl font-extrabold text-slate-950 dark:text-white">
+        Welcome back
+      </h1>
       <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
         Enter your verified Medfinet identity credentials.
       </p>
@@ -58,7 +61,10 @@ export default function Login() {
         <label className="block text-sm font-semibold">
           Email
           <div className="relative mt-1">
-            <EnvelopeSimple className="absolute left-3 top-3.5 text-slate-400" size={17} />
+            <EnvelopeSimple
+              className="absolute left-3 top-3.5 text-slate-400"
+              size={17}
+            />
             <input
               required
               type="email"
@@ -74,7 +80,10 @@ export default function Login() {
         <label className="block text-sm font-semibold">
           Password
           <div className="relative mt-1">
-            <LockKey className="absolute left-3 top-3.5 text-slate-400" size={17} />
+            <LockKey
+              className="absolute left-3 top-3.5 text-slate-400"
+              size={17}
+            />
             <input
               required
               type="password"
@@ -95,10 +104,7 @@ export default function Login() {
             Forgot password?
           </Link>
         </div>
-        <button
-          disabled={busy}
-          className="mf-button-primary w-full"
-        >
+        <button disabled={busy} className="mf-button-primary w-full">
           {busy ? "Signing in…" : "Sign in"}
         </button>
       </form>
