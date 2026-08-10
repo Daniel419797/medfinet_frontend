@@ -8,7 +8,13 @@ import {
 import type { VaccinationCertificateEvidence } from "../../services/medfinetClinicalApi";
 
 export type CertificateNftEvidence = {
-  status: "DISABLED" | "PENDING" | "CONFIRMED" | "MISMATCH" | "UNAVAILABLE";
+  status:
+    | "DISABLED"
+    | "PENDING"
+    | "CONFIRMED"
+    | "UNCONFIRMED"
+    | "MISMATCH"
+    | "UNAVAILABLE";
   reason?: string | null;
   queued: boolean;
   assetId: string | null;
@@ -185,9 +191,11 @@ export default function CertificateBlockchainEvidence({
               ? "Immutable 1-of-1 Algorand certificate asset"
               : nft?.status === "PENDING"
                 ? "Mint request is queued or awaiting confirmation"
-                : nft?.status === "DISABLED"
-                  ? "NFT minting is disabled for this environment"
-                  : "NFT evidence is not confirmed yet"}
+                : nft?.status === "UNCONFIRMED"
+                  ? "Asset evidence matches, but the mint is not yet confirmed"
+                  : nft?.status === "DISABLED"
+                    ? "NFT minting is disabled for this environment"
+                    : "NFT evidence is not confirmed yet"}
           </p>
           {nft?.assetId && (
             <p className="mt-2 font-mono text-xs font-bold">Asset ID {nft.assetId}</p>
