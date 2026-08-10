@@ -69,8 +69,11 @@ const secondaryButton =
 const primaryButton =
   "rounded-lg bg-cyan-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50";
 
-function today() {
-  return new Date().toISOString().slice(0, 10);
+function localDateInputValue() {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
+    .toISOString()
+    .slice(0, 10);
 }
 
 function emptyVaccinationMetadata(): VaccinationMetadataForm {
@@ -90,7 +93,7 @@ function makeInitialForms() {
     immunization: {
       vaccineCode: "",
       doseNumber: "1",
-      administeredAt: today(),
+      administeredAt: localDateInputValue(),
       lotNumber: "",
       route: "IM",
       site: "",
@@ -98,7 +101,7 @@ function makeInitialForms() {
       ...emptyVaccinationMetadata(),
     },
     growth: {
-      measuredAt: today(),
+      measuredAt: localDateInputValue(),
       weightGrams: "",
       heightMillimeters: "",
       muacMillimeters: "",
@@ -125,7 +128,7 @@ function makeInitialForms() {
 function locationFromFacility(facility: MedfinetFacility | undefined) {
   return {
     facilityName: facility?.name || "",
-    state: facility?.state || facility?.administrativeArea || "",
+    state: facility?.state || "",
     lga: facility?.lga || "",
     ward: facility?.ward || "",
   };
@@ -152,11 +155,11 @@ function metadataPayload(form: VaccinationMetadataForm) {
 function certificateMetadataComplete(item: Immunization) {
   const metadata = item.certificateMetadata;
   return Boolean(
-    metadata?.facilityName
-      && metadata.state
-      && metadata.lga
-      && metadata.ward
-      && metadata.vaccinatorName,
+    metadata?.facilityName &&
+      metadata.state &&
+      metadata.lga &&
+      metadata.ward &&
+      metadata.vaccinatorName,
   );
 }
 
@@ -177,13 +180,13 @@ function VaccinationMetadataFields({
     (facility) => facility.id === value.facilitySelection,
   );
   const storedFacilityReferenceMissing = Boolean(
-    value.facilitySelection
-      && value.facilitySelection !== MANUAL_FACILITY
-      && !selectedFacility,
+    value.facilitySelection &&
+      value.facilitySelection !== MANUAL_FACILITY &&
+      !selectedFacility,
   );
   const facilityIncomplete = Boolean(
-    selectedFacility
-      && (!selectedFacility.state || !selectedFacility.lga || !selectedFacility.ward),
+    selectedFacility &&
+      (!selectedFacility.state || !selectedFacility.lga || !selectedFacility.ward),
   );
 
   return (
@@ -256,8 +259,14 @@ function VaccinationMetadataFields({
             required
             className={fieldClass}
             value={value.facilityName}
-            onChange={(event) => onChange({ ...value, facilityName: event.target.value })}
-            placeholder={historical ? "Enter the name verified from the source record" : undefined}
+            onChange={(event) =>
+              onChange({ ...value, facilityName: event.target.value })
+            }
+            placeholder={
+              historical
+                ? "Enter the name verified from the source record"
+                : undefined
+            }
           />
         </label>
       )}
@@ -329,7 +338,9 @@ function VaccinationMetadataFields({
             required
             className={fieldClass}
             value={value.vaccinatorName}
-            onChange={(event) => onChange({ ...value, vaccinatorName: event.target.value })}
+            onChange={(event) =>
+              onChange({ ...value, vaccinatorName: event.target.value })
+            }
           />
         </label>
       )}
@@ -349,6 +360,9 @@ export default function ClinicalOperations() {
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<Tab>("summary");
   const [recordKind, setRecordKind] = useState<RecordKind | null>(null);
+  const [recordSourceOperationId, setRecordSourceOperationId] = useState(() =>
+    crypto.randomUUID(),
+  );
   const [childOpen, setChildOpen] = useState(false);
   const [resolveTarget, setResolveTarget] = useState<{
     kind: "alert" | "allergy";
@@ -382,7 +396,11 @@ export default function ClinicalOperations() {
       ]);
       setChildren(childrenResult.items);
       setFacilities(facilityRows);
-      setSelectedId((current) => current || childrenResult.items[0]?.id || "");
+      setSelectedId((current) =>
+        current && childrenResult.items.some((child) => child.id === current)
+          ? current
+          : childrenResult.items[0]?.id || "",
+      );
     } catch (reason) {
       setError(
         reason instanceof Error
@@ -423,6 +441,7 @@ export default function ClinicalOperations() {
   useEffect(() => {
     void loadChildrenAndFacilities();
   }, [loadChildrenAndFacilities]);
+
   useEffect(() => {
     void loadRecord();
   }, [loadRecord]);
@@ -457,6 +476,7 @@ export default function ClinicalOperations() {
   }
 
   function openRecord(kind: RecordKind) {
+    setRecordSourceOperationId(crypto.randomUUID());
     if (kind === "immunization") {
       const firstFacility = facilities[0];
       const location = locationFromFacility(firstFacility);
@@ -489,7 +509,12 @@ export default function ClinicalOperations() {
       );
       setNotice(`Record created with Medfinet ID ${child.medfinetId}.`);
       setChildOpen(false);
-      setChildForm({ firstName: "", lastName: "", dateOfBirth: "", sex: "UNKNOWN" });
+      setChildForm({
+        firstName: "",
+        lastName: "",
+        dateOfBirth: "",
+        sex: "UNKNOWN",
+      });
       await loadChildrenAndFacilities();
       setSelectedId(child.id);
     } catch (reason) {
@@ -505,6 +530,7 @@ export default function ClinicalOperations() {
     event.preventDefault();
     if (!organizationId || !selectedId || !recordKind) return;
     let operation: Promise<unknown>;
+
     if (recordKind === "immunization") {
       const form = forms.immunization;
       operation = medfinetClinicalApi.recordImmunization(
@@ -513,30 +539,44 @@ export default function ClinicalOperations() {
         {
           vaccineCode: form.vaccineCode.trim(),
           doseNumber: Number(form.doseNumber),
-          administeredAt: new Date(`${form.administeredAt}T12:00:00Z`).toISOString(),
+          administeredAt: new Date(
+            `${form.administeredAt}T12:00:00Z`,
+          ).toISOString(),
           lotNumber: form.lotNumber.trim() || undefined,
           route: form.route.trim() || undefined,
           site: form.site.trim() || undefined,
           notes: form.notes.trim() || undefined,
-          sourceOperationId: crypto.randomUUID(),
+          sourceOperationId: recordSourceOperationId,
           ...metadataPayload(form),
         },
       );
     } else if (recordKind === "growth") {
       operation = medfinetClinicalApi.recordGrowth(organizationId, selectedId, {
-        measuredAt: new Date(`${forms.growth.measuredAt}T12:00:00Z`).toISOString(),
-        weightGrams: forms.growth.weightGrams ? Number(forms.growth.weightGrams) : undefined,
-        heightMillimeters: forms.growth.heightMillimeters ? Number(forms.growth.heightMillimeters) : undefined,
-        muacMillimeters: forms.growth.muacMillimeters ? Number(forms.growth.muacMillimeters) : undefined,
+        measuredAt: new Date(
+          `${forms.growth.measuredAt}T12:00:00Z`,
+        ).toISOString(),
+        weightGrams: forms.growth.weightGrams
+          ? Number(forms.growth.weightGrams)
+          : undefined,
+        heightMillimeters: forms.growth.heightMillimeters
+          ? Number(forms.growth.heightMillimeters)
+          : undefined,
+        muacMillimeters: forms.growth.muacMillimeters
+          ? Number(forms.growth.muacMillimeters)
+          : undefined,
         vitaminAAdministered: forms.growth.vitaminAAdministered,
         oedemaPresent: forms.growth.oedemaPresent,
         notes: forms.growth.notes.trim() || undefined,
-        sourceOperationId: crypto.randomUUID(),
+        sourceOperationId: recordSourceOperationId,
       });
     } else if (recordKind === "alert") {
       operation = medfinetClinicalApi.createAlert(organizationId, selectedId, {
         ...forms.alert,
-        severity: forms.alert.severity as "LOW" | "MODERATE" | "HIGH" | "CRITICAL",
+        severity: forms.alert.severity as
+          | "LOW"
+          | "MODERATE"
+          | "HIGH"
+          | "CRITICAL",
       });
     } else if (recordKind === "allergy") {
       operation = medfinetClinicalApi.recordAllergy(organizationId, selectedId, {
@@ -553,11 +593,13 @@ export default function ClinicalOperations() {
         },
       );
     }
+
     const saved = await run(
       () => operation,
       `${recordKind} recorded with an audit event.`,
     );
     if (saved) {
+      setRecordSourceOperationId(crypto.randomUUID());
       setRecordKind(null);
       setForms(makeInitialForms());
     }
@@ -568,9 +610,9 @@ export default function ClinicalOperations() {
     const historical = !certificateMetadataComplete(item);
     const facilityId = metadata?.facilityId || item.facilityId || "";
     const useSelf = Boolean(
-      metadata?.vaccinatorSubjectId
-        && user?.id
-        && metadata.vaccinatorSubjectId === user.id,
+      metadata?.vaccinatorSubjectId &&
+        user?.id &&
+        metadata.vaccinatorSubjectId === user.id,
     );
     setAmendTarget(item);
     setAmendForm({
@@ -580,7 +622,8 @@ export default function ClinicalOperations() {
       lga: historical ? "" : metadata?.lga || "",
       ward: historical ? "" : metadata?.ward || "",
       vaccinatorMode: historical ? "OTHER" : useSelf ? "SELF" : "OTHER",
-      vaccinatorName: historical || useSelf ? "" : metadata?.vaccinatorName || "",
+      vaccinatorName:
+        historical || useSelf ? "" : metadata?.vaccinatorName || "",
       reason: "",
     });
   }
@@ -591,14 +634,15 @@ export default function ClinicalOperations() {
     const reason = amendForm.reason.trim();
     if (reason.length < 3) return;
     const saved = await run(
-      () => medfinetClinicalApi.amendImmunization(
-        organizationId,
-        amendTarget.id,
-        {
-          reason,
-          ...metadataPayload(amendForm),
-        },
-      ),
+      () =>
+        medfinetClinicalApi.amendImmunization(
+          organizationId,
+          amendTarget.id,
+          {
+            reason,
+            ...metadataPayload(amendForm),
+          },
+        ),
       "Vaccination certificate details amended. A new integrity proof has been queued.",
     );
     if (saved) setAmendTarget(null);
@@ -610,13 +654,17 @@ export default function ClinicalOperations() {
   ) {
     if (!organizationId) return;
     void run(
-      () => medfinetClinicalApi.updateAppointmentStatus(organizationId, id, { status }),
+      () =>
+        medfinetClinicalApi.updateAppointmentStatus(organizationId, id, {
+          status,
+        }),
       `Appointment marked ${status.toLowerCase()}.`,
     );
   }
 
   function renderRecords() {
     if (!timeline) return null;
+
     if (tab === "summary") {
       const incompleteCertificates = timeline.immunizations.filter(
         (item) => !certificateMetadataComplete(item),
@@ -625,10 +673,21 @@ export default function ClinicalOperations() {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
           {[
             { label: "Immunizations", value: timeline.immunizations.length },
-            { label: "Certificate details missing", value: incompleteCertificates },
+            {
+              label: "Certificate details missing",
+              value: incompleteCertificates,
+            },
             { label: "Growth checks", value: timeline.growth.length },
-            { label: "Active alerts", value: timeline.alerts.filter((x) => x.status === "ACTIVE").length },
-            { label: "Active allergies", value: timeline.allergies.filter((x) => x.status === "ACTIVE").length },
+            {
+              label: "Active alerts",
+              value: timeline.alerts.filter((item) => item.status === "ACTIVE")
+                .length,
+            },
+            {
+              label: "Active allergies",
+              value: timeline.allergies.filter((item) => item.status === "ACTIVE")
+                .length,
+            },
             { label: "Appointments", value: timeline.appointments.length },
           ].map((item) => (
             <article key={item.label} className="rounded-xl border bg-white p-5">
@@ -641,27 +700,48 @@ export default function ClinicalOperations() {
     }
 
     if (tab === "schedule") {
-      const overdue = schedule?.recommendations.filter((x) => x.status === "OVERDUE") || [];
-      const upcoming = schedule?.recommendations.filter((x) =>
-        ["DUE", "UPCOMING", "NOT_ELIGIBLE", "BLOCKED_PREVIOUS_DOSE"].includes(x.status),
-      ) || [];
+      const overdue =
+        schedule?.recommendations.filter((item) => item.status === "OVERDUE") ||
+        [];
+      const upcoming =
+        schedule?.recommendations.filter((item) =>
+          ["DUE", "UPCOMING", "NOT_ELIGIBLE", "BLOCKED_PREVIOUS_DOSE"].includes(
+            item.status,
+          ),
+        ) || [];
       return (
         <div className="grid gap-4 lg:grid-cols-2">
           <section className="rounded-xl border border-amber-200 bg-amber-50 p-5">
             <h3 className="font-bold text-amber-950">Overdue</h3>
-            {overdue.length ? overdue.map((item) => (
-              <p key={`${item.vaccineCode}-${item.doseNumber}`} className="mt-2 text-sm">
-                {item.vaccineCode} dose {item.doseNumber} · due {new Date(item.dueAt).toLocaleDateString()}
-              </p>
-            )) : <p className="mt-2 text-sm">No overdue doses.</p>}
+            {overdue.length ? (
+              overdue.map((item) => (
+                <p
+                  key={`${item.vaccineCode}-${item.doseNumber}`}
+                  className="mt-2 text-sm"
+                >
+                  {item.vaccineCode} dose {item.doseNumber} · due{" "}
+                  {new Date(item.dueAt).toLocaleDateString()}
+                </p>
+              ))
+            ) : (
+              <p className="mt-2 text-sm">No overdue doses.</p>
+            )}
           </section>
           <section className="rounded-xl border bg-white p-5">
             <h3 className="font-bold">Upcoming</h3>
-            {upcoming.length ? upcoming.map((item) => (
-              <p key={`${item.vaccineCode}-${item.doseNumber}`} className="mt-2 text-sm">
-                {item.vaccineCode} dose {item.doseNumber} · {item.status} · {new Date(item.dueAt).toLocaleDateString()}
-              </p>
-            )) : <p className="mt-2 text-sm">No upcoming doses.</p>}
+            {upcoming.length ? (
+              upcoming.map((item) => (
+                <p
+                  key={`${item.vaccineCode}-${item.doseNumber}`}
+                  className="mt-2 text-sm"
+                >
+                  {item.vaccineCode} dose {item.doseNumber} · {item.status} ·{" "}
+                  {new Date(item.dueAt).toLocaleDateString()}
+                </p>
+              ))
+            ) : (
+              <p className="mt-2 text-sm">No upcoming doses.</p>
+            )}
           </section>
         </div>
       );
@@ -676,7 +756,9 @@ export default function ClinicalOperations() {
               <article key={item.id} className="rounded-xl border bg-white p-4">
                 <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
                   <div>
-                    <p className="font-semibold">{item.vaccineCode} · dose {item.doseNumber}</p>
+                    <p className="font-semibold">
+                      {item.vaccineCode} · dose {item.doseNumber}
+                    </p>
                     <p className="mt-1 text-xs text-slate-500">
                       {item.status} · {new Date(item.administeredAt).toLocaleString()}
                     </p>
@@ -687,7 +769,9 @@ export default function ClinicalOperations() {
                           {item.certificateMetadata?.facilityName}
                         </p>
                         <p className="mt-1 text-xs text-slate-500">
-                          {item.certificateMetadata?.state} · {item.certificateMetadata?.lga} · {item.certificateMetadata?.ward}
+                          {item.certificateMetadata?.state} ·{" "}
+                          {item.certificateMetadata?.lga} ·{" "}
+                          {item.certificateMetadata?.ward}
                         </p>
                         <p className="mt-1 text-xs text-slate-500">
                           Vaccinator: {item.certificateMetadata?.vaccinatorName}
@@ -695,17 +779,21 @@ export default function ClinicalOperations() {
                       </div>
                     ) : (
                       <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-medium text-amber-900">
-                        Certificate location or vaccinator details were not recorded for this dose. Verify the historical record and amend the certificate details.
+                        Certificate location or vaccinator details were not recorded
+                        for this dose. Verify the historical record and amend the
+                        certificate details.
                       </p>
                     )}
                   </div>
-                  {(["ACTIVE", "AMENDED"].includes(item.status)) && (
+                  {["ACTIVE", "AMENDED"].includes(item.status) && (
                     <button
                       type="button"
                       className={secondaryButton}
                       onClick={() => openAmendment(item)}
                     >
-                      {complete ? "Amend certificate details" : "Complete certificate details"}
+                      {complete
+                        ? "Amend certificate details"
+                        : "Complete certificate details"}
                     </button>
                   )}
                 </div>
@@ -713,7 +801,9 @@ export default function ClinicalOperations() {
             );
           })}
           {!timeline.immunizations.length && (
-            <p className="rounded-xl border border-dashed bg-white p-8 text-center text-sm text-slate-500">No immunizations recorded.</p>
+            <p className="rounded-xl border border-dashed bg-white p-8 text-center text-sm text-slate-500">
+              No immunizations recorded.
+            </p>
           )}
         </div>
       );
@@ -725,13 +815,24 @@ export default function ClinicalOperations() {
           {timeline.growth.map((item) => (
             <article key={item.id} className="rounded-xl border bg-white p-4">
               <p className="font-semibold">
-                {item.weightGrams ? `${item.weightGrams / 1000} kg` : "No weight"} · {item.heightMillimeters ? `${item.heightMillimeters} mm` : "No height"}
+                {item.weightGrams
+                  ? `${item.weightGrams / 1000} kg`
+                  : "No weight"} ·{" "}
+                {item.heightMillimeters
+                  ? `${item.heightMillimeters} mm`
+                  : "No height"}
               </p>
               <p className="text-sm text-slate-600">{item.notes || ""}</p>
-              <p className="text-xs text-slate-500">{item.status} · {new Date(item.measuredAt).toLocaleString()}</p>
+              <p className="text-xs text-slate-500">
+                {item.status} · {new Date(item.measuredAt).toLocaleString()}
+              </p>
             </article>
           ))}
-          {!timeline.growth.length && <p className="rounded-xl border border-dashed bg-white p-8 text-center text-sm text-slate-500">No growth measurements recorded.</p>}
+          {!timeline.growth.length && (
+            <p className="rounded-xl border border-dashed bg-white p-8 text-center text-sm text-slate-500">
+              No growth measurements recorded.
+            </p>
+          )}
         </div>
       );
     }
@@ -742,12 +843,31 @@ export default function ClinicalOperations() {
           {timeline.alerts.map((item) => (
             <article key={item.id} className="rounded-xl border bg-white p-4">
               <div className="flex items-start justify-between gap-4">
-                <div><p className="font-semibold">{item.category} · {item.severity}</p><p className="text-sm text-slate-600">{item.summary}</p><p className="text-xs text-slate-500">{item.status}</p></div>
-                {item.status === "ACTIVE" && <button className={secondaryButton} onClick={() => setResolveTarget({ kind: "alert", id: item.id })}>Resolve</button>}
+                <div>
+                  <p className="font-semibold">
+                    {item.category} · {item.severity}
+                  </p>
+                  <p className="text-sm text-slate-600">{item.summary}</p>
+                  <p className="text-xs text-slate-500">{item.status}</p>
+                </div>
+                {item.status === "ACTIVE" && (
+                  <button
+                    className={secondaryButton}
+                    onClick={() =>
+                      setResolveTarget({ kind: "alert", id: item.id })
+                    }
+                  >
+                    Resolve
+                  </button>
+                )}
               </div>
             </article>
           ))}
-          {!timeline.alerts.length && <p className="rounded-xl border border-dashed bg-white p-8 text-center text-sm text-slate-500">No alerts recorded.</p>}
+          {!timeline.alerts.length && (
+            <p className="rounded-xl border border-dashed bg-white p-8 text-center text-sm text-slate-500">
+              No alerts recorded.
+            </p>
+          )}
         </div>
       );
     }
@@ -758,12 +878,31 @@ export default function ClinicalOperations() {
           {timeline.allergies.map((item) => (
             <article key={item.id} className="rounded-xl border bg-white p-4">
               <div className="flex items-start justify-between gap-4">
-                <div><p className="font-semibold">{item.substanceDisplay} · {item.severity}</p><p className="text-sm text-slate-600">{item.reaction || ""}</p><p className="text-xs text-slate-500">{item.status}</p></div>
-                {item.status === "ACTIVE" && <button className={secondaryButton} onClick={() => setResolveTarget({ kind: "allergy", id: item.id })}>Resolve</button>}
+                <div>
+                  <p className="font-semibold">
+                    {item.substanceDisplay} · {item.severity}
+                  </p>
+                  <p className="text-sm text-slate-600">{item.reaction || ""}</p>
+                  <p className="text-xs text-slate-500">{item.status}</p>
+                </div>
+                {item.status === "ACTIVE" && (
+                  <button
+                    className={secondaryButton}
+                    onClick={() =>
+                      setResolveTarget({ kind: "allergy", id: item.id })
+                    }
+                  >
+                    Resolve
+                  </button>
+                )}
               </div>
             </article>
           ))}
-          {!timeline.allergies.length && <p className="rounded-xl border border-dashed bg-white p-8 text-center text-sm text-slate-500">No allergies recorded.</p>}
+          {!timeline.allergies.length && (
+            <p className="rounded-xl border border-dashed bg-white p-8 text-center text-sm text-slate-500">
+              No allergies recorded.
+            </p>
+          )}
         </div>
       );
     }
@@ -773,18 +912,36 @@ export default function ClinicalOperations() {
         {timeline.appointments.map((item) => (
           <article key={item.id} className="rounded-xl border bg-white p-4">
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-              <div><p className="font-semibold">{item.kind}</p><p className="text-sm text-slate-600">{item.notes || ""}</p><p className="text-xs text-slate-500">{item.status} · {new Date(item.scheduledFor).toLocaleString()}</p></div>
+              <div>
+                <p className="font-semibold">{item.kind}</p>
+                <p className="text-sm text-slate-600">{item.notes || ""}</p>
+                <p className="text-xs text-slate-500">
+                  {item.status} · {new Date(item.scheduledFor).toLocaleString()}
+                </p>
+              </div>
               {item.status === "SCHEDULED" && (
                 <div className="flex flex-wrap gap-2">
-                  {(["COMPLETED", "MISSED", "CANCELLED"] as const).map((status) => (
-                    <button key={status} className={secondaryButton} onClick={() => updateAppointment(item.id, status)}>{status.toLowerCase()}</button>
-                  ))}
+                  {(["COMPLETED", "MISSED", "CANCELLED"] as const).map(
+                    (status) => (
+                      <button
+                        key={status}
+                        className={secondaryButton}
+                        onClick={() => updateAppointment(item.id, status)}
+                      >
+                        {status.toLowerCase()}
+                      </button>
+                    ),
+                  )}
                 </div>
               )}
             </div>
           </article>
         ))}
-        {!timeline.appointments.length && <p className="rounded-xl border border-dashed bg-white p-8 text-center text-sm text-slate-500">No appointments recorded.</p>}
+        {!timeline.appointments.length && (
+          <p className="rounded-xl border border-dashed bg-white p-8 text-center text-sm text-slate-500">
+            No appointments recorded.
+          </p>
+        )}
       </div>
     );
   }
@@ -793,12 +950,23 @@ export default function ClinicalOperations() {
     <main className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-sm font-semibold text-cyan-700">Longitudinal child health record</p>
-          <h1 className="text-3xl font-bold text-slate-950 dark:text-white">Clinical operations</h1>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Search, register, review and record care with append-only audit evidence.</p>
+          <p className="text-sm font-semibold text-cyan-700">
+            Longitudinal child health record
+          </p>
+          <h1 className="text-3xl font-bold text-slate-950 dark:text-white">
+            Clinical operations
+          </h1>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+            Search, register, review and record care with append-only audit evidence.
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button className={secondaryButton} onClick={() => void Promise.all([loadChildrenAndFacilities(), loadRecord()])}>
+          <button
+            className={secondaryButton}
+            onClick={() =>
+              void Promise.all([loadChildrenAndFacilities(), loadRecord()])
+            }
+          >
             <RefreshCw className="mr-2 inline h-4 w-4" /> Refresh
           </button>
           <button className={primaryButton} onClick={() => setChildOpen(true)}>
@@ -807,47 +975,128 @@ export default function ClinicalOperations() {
         </div>
       </div>
 
-      {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">{notice}</div>}
+      {notice && (
+        <div
+          role="status"
+          className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900"
+        >
+          {notice}
+        </div>
+      )}
 
       <div className="grid gap-6 xl:grid-cols-[300px_1fr]">
         <aside className="rounded-xl border bg-white p-4">
           <label className="relative block">
             <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-            <input aria-label="Search children" className="w-full rounded-lg border py-2 pl-9 pr-3 text-sm" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name or Medfinet ID" />
+            <input
+              aria-label="Search children"
+              className="w-full rounded-lg border py-2 pl-9 pr-3 text-sm"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Name or Medfinet ID"
+            />
           </label>
           <div className="mt-3 max-h-[65vh] space-y-2 overflow-y-auto">
             {filteredChildren.map((child) => (
-              <button key={child.id} type="button" onClick={() => setSelectedId(child.id)} className={`w-full rounded-lg p-3 text-left ${selectedId === child.id ? "bg-cyan-50 ring-1 ring-cyan-300" : "hover:bg-slate-50"}`}>
-                <p className="font-semibold">{child.firstName} {child.lastName}</p>
-                <p className="truncate text-xs text-slate-500">{child.medfinetId}</p>
+              <button
+                key={child.id}
+                type="button"
+                onClick={() => setSelectedId(child.id)}
+                className={`w-full rounded-lg p-3 text-left ${
+                  selectedId === child.id
+                    ? "bg-cyan-50 ring-1 ring-cyan-300"
+                    : "hover:bg-slate-50"
+                }`}
+              >
+                <p className="font-semibold">
+                  {child.firstName} {child.lastName}
+                </p>
+                <p className="truncate text-xs text-slate-500">
+                  {child.medfinetId}
+                </p>
               </button>
             ))}
           </div>
         </aside>
 
         <section>
-          <PageFeedback loading={loading} error={error} empty={!selected} onRetry={() => void Promise.all([loadChildrenAndFacilities(), loadRecord()])}>
+          <PageFeedback
+            loading={loading}
+            error={error}
+            empty={!selected}
+            onRetry={() =>
+              void Promise.all([loadChildrenAndFacilities(), loadRecord()])
+            }
+          >
             {selected && (
               <>
                 <div className="rounded-xl border bg-white p-5">
                   <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
                     <div>
-                      <p className="text-xs font-bold uppercase text-cyan-700">{selected.medfinetId}</p>
-                      <h2 className="text-2xl font-bold">{selected.firstName} {selected.lastName}</h2>
-                      <p className="text-sm text-slate-600">Born {new Date(selected.dateOfBirth).toLocaleDateString()} · {selected.sex}</p>
+                      <p className="text-xs font-bold uppercase text-cyan-700">
+                        {selected.medfinetId}
+                      </p>
+                      <h2 className="text-2xl font-bold">
+                        {selected.firstName} {selected.lastName}
+                      </h2>
+                      <p className="text-sm text-slate-600">
+                        Born {new Date(selected.dateOfBirth).toLocaleDateString()} ·{" "}
+                        {selected.sex}
+                      </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <button className={secondaryButton} onClick={() => openRecord("immunization")}><Syringe className="mr-2 inline h-4 w-4" /> Immunization</button>
-                      <button className={secondaryButton} onClick={() => openRecord("growth")}><Activity className="mr-2 inline h-4 w-4" /> Growth</button>
-                      <button className={secondaryButton} onClick={() => openRecord("alert")}><AlertTriangle className="mr-2 inline h-4 w-4" /> Alert</button>
-                      <button className={secondaryButton} onClick={() => openRecord("allergy")}><Plus className="mr-2 inline h-4 w-4" /> Allergy</button>
-                      <button className={primaryButton} onClick={() => openRecord("appointment")}><CalendarPlus className="mr-2 inline h-4 w-4" /> Appointment</button>
+                      <button
+                        className={secondaryButton}
+                        onClick={() => openRecord("immunization")}
+                      >
+                        <Syringe className="mr-2 inline h-4 w-4" /> Immunization
+                      </button>
+                      <button
+                        className={secondaryButton}
+                        onClick={() => openRecord("growth")}
+                      >
+                        <Activity className="mr-2 inline h-4 w-4" /> Growth
+                      </button>
+                      <button
+                        className={secondaryButton}
+                        onClick={() => openRecord("alert")}
+                      >
+                        <AlertTriangle className="mr-2 inline h-4 w-4" /> Alert
+                      </button>
+                      <button
+                        className={secondaryButton}
+                        onClick={() => openRecord("allergy")}
+                      >
+                        <Plus className="mr-2 inline h-4 w-4" /> Allergy
+                      </button>
+                      <button
+                        className={primaryButton}
+                        onClick={() => openRecord("appointment")}
+                      >
+                        <CalendarPlus className="mr-2 inline h-4 w-4" /> Appointment
+                      </button>
                     </div>
                   </div>
                 </div>
                 <div className="my-5 flex gap-2 overflow-x-auto">
-                  {(["summary", "immunizations", "growth", "alerts", "allergies", "appointments", "schedule"] as const).map((value) => (
-                    <button key={value} className={`rounded-full px-4 py-2 text-sm font-semibold ${tab === value ? "bg-slate-950 text-white" : "border bg-white"}`} onClick={() => setTab(value)}>{value}</button>
+                  {([
+                    "summary",
+                    "immunizations",
+                    "growth",
+                    "alerts",
+                    "allergies",
+                    "appointments",
+                    "schedule",
+                  ] as const).map((value) => (
+                    <button
+                      key={value}
+                      className={`rounded-full px-4 py-2 text-sm font-semibold ${
+                        tab === value ? "bg-slate-950 text-white" : "border bg-white"
+                      }`}
+                      onClick={() => setTab(value)}
+                    >
+                      {value}
+                    </button>
                   ))}
                 </div>
                 {renderRecords()}
@@ -857,76 +1106,548 @@ export default function ClinicalOperations() {
         </section>
       </div>
 
-      <Modal open={childOpen} onClose={() => setChildOpen(false)} title="Register child">
+      <Modal
+        open={childOpen}
+        onClose={() => setChildOpen(false)}
+        title="Register child"
+      >
         <form className="space-y-4" onSubmit={(event) => void createChild(event)}>
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="text-sm font-semibold">First name<input required className={fieldClass} value={childForm.firstName} onChange={(event) => setChildForm({ ...childForm, firstName: event.target.value })} /></label>
-            <label className="text-sm font-semibold">Last name<input required className={fieldClass} value={childForm.lastName} onChange={(event) => setChildForm({ ...childForm, lastName: event.target.value })} /></label>
+            <label className="text-sm font-semibold">
+              First name
+              <input
+                required
+                className={fieldClass}
+                value={childForm.firstName}
+                onChange={(event) =>
+                  setChildForm((current) => ({
+                    ...current,
+                    firstName: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label className="text-sm font-semibold">
+              Last name
+              <input
+                required
+                className={fieldClass}
+                value={childForm.lastName}
+                onChange={(event) =>
+                  setChildForm((current) => ({
+                    ...current,
+                    lastName: event.target.value,
+                  }))
+                }
+              />
+            </label>
           </div>
-          <label className="block text-sm font-semibold">Date of birth<input required type="date" max={today()} className={fieldClass} value={childForm.dateOfBirth} onChange={(event) => setChildForm({ ...childForm, dateOfBirth: event.target.value })} /></label>
-          <label className="block text-sm font-semibold">Sex<select className={fieldClass} value={childForm.sex} onChange={(event) => setChildForm({ ...childForm, sex: event.target.value })}><option>FEMALE</option><option>MALE</option><option>INTERSEX</option><option>UNKNOWN</option></select></label>
-          <button className={primaryButton} disabled={busy}>Register child</button>
+          <label className="block text-sm font-semibold">
+            Date of birth
+            <input
+              required
+              type="date"
+              max={localDateInputValue()}
+              className={fieldClass}
+              value={childForm.dateOfBirth}
+              onChange={(event) =>
+                setChildForm((current) => ({
+                  ...current,
+                  dateOfBirth: event.target.value,
+                }))
+              }
+            />
+          </label>
+          <label className="block text-sm font-semibold">
+            Sex
+            <select
+              className={fieldClass}
+              value={childForm.sex}
+              onChange={(event) =>
+                setChildForm((current) => ({
+                  ...current,
+                  sex: event.target.value,
+                }))
+              }
+            >
+              <option>FEMALE</option>
+              <option>MALE</option>
+              <option>INTERSEX</option>
+              <option>UNKNOWN</option>
+            </select>
+          </label>
+          <button className={primaryButton} disabled={busy}>
+            Register child
+          </button>
         </form>
       </Modal>
 
-      <Modal open={Boolean(recordKind)} onClose={() => !busy && setRecordKind(null)} title={`Record ${recordKind || "clinical event"}`}>
+      <Modal
+        open={Boolean(recordKind)}
+        onClose={() => !busy && setRecordKind(null)}
+        title={`Record ${recordKind || "clinical event"}`}
+      >
         <form className="space-y-4" onSubmit={(event) => void createRecord(event)}>
           {recordKind === "immunization" ? (
             <>
-              <label className="block text-sm font-semibold">Vaccine code<input required className={fieldClass} value={forms.immunization.vaccineCode} onChange={(event) => setForms((current) => ({ ...current, immunization: { ...current.immunization, vaccineCode: event.target.value } }))} /></label>
+              <label className="block text-sm font-semibold">
+                Vaccine code
+                <input
+                  required
+                  className={fieldClass}
+                  value={forms.immunization.vaccineCode}
+                  onChange={(event) =>
+                    setForms((current) => ({
+                      ...current,
+                      immunization: {
+                        ...current.immunization,
+                        vaccineCode: event.target.value,
+                      },
+                    }))
+                  }
+                />
+              </label>
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="text-sm font-semibold">Dose<input required type="number" min="1" max="20" className={fieldClass} value={forms.immunization.doseNumber} onChange={(event) => setForms((current) => ({ ...current, immunization: { ...current.immunization, doseNumber: event.target.value } }))} /></label>
-                <label className="text-sm font-semibold">Administered<input required type="date" max={today()} className={fieldClass} value={forms.immunization.administeredAt} onChange={(event) => setForms((current) => ({ ...current, immunization: { ...current.immunization, administeredAt: event.target.value } }))} /></label>
+                <label className="text-sm font-semibold">
+                  Dose
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    max="20"
+                    className={fieldClass}
+                    value={forms.immunization.doseNumber}
+                    onChange={(event) =>
+                      setForms((current) => ({
+                        ...current,
+                        immunization: {
+                          ...current.immunization,
+                          doseNumber: event.target.value,
+                        },
+                      }))
+                    }
+                  />
+                </label>
+                <label className="text-sm font-semibold">
+                  Administered
+                  <input
+                    required
+                    type="date"
+                    max={localDateInputValue()}
+                    className={fieldClass}
+                    value={forms.immunization.administeredAt}
+                    onChange={(event) =>
+                      setForms((current) => ({
+                        ...current,
+                        immunization: {
+                          ...current.immunization,
+                          administeredAt: event.target.value,
+                        },
+                      }))
+                    }
+                  />
+                </label>
               </div>
               <div className="grid gap-4 sm:grid-cols-3">
-                <label className="text-sm font-semibold">Lot number<input className={fieldClass} value={forms.immunization.lotNumber} onChange={(event) => setForms((current) => ({ ...current, immunization: { ...current.immunization, lotNumber: event.target.value } }))} /></label>
-                <label className="text-sm font-semibold">Route<input className={fieldClass} value={forms.immunization.route} onChange={(event) => setForms((current) => ({ ...current, immunization: { ...current.immunization, route: event.target.value } }))} /></label>
-                <label className="text-sm font-semibold">Site<input className={fieldClass} value={forms.immunization.site} onChange={(event) => setForms((current) => ({ ...current, immunization: { ...current.immunization, site: event.target.value } }))} /></label>
+                <label className="text-sm font-semibold">
+                  Lot number
+                  <input
+                    className={fieldClass}
+                    value={forms.immunization.lotNumber}
+                    onChange={(event) =>
+                      setForms((current) => ({
+                        ...current,
+                        immunization: {
+                          ...current.immunization,
+                          lotNumber: event.target.value,
+                        },
+                      }))
+                    }
+                  />
+                </label>
+                <label className="text-sm font-semibold">
+                  Route
+                  <input
+                    className={fieldClass}
+                    value={forms.immunization.route}
+                    onChange={(event) =>
+                      setForms((current) => ({
+                        ...current,
+                        immunization: {
+                          ...current.immunization,
+                          route: event.target.value,
+                        },
+                      }))
+                    }
+                  />
+                </label>
+                <label className="text-sm font-semibold">
+                  Site
+                  <input
+                    className={fieldClass}
+                    value={forms.immunization.site}
+                    onChange={(event) =>
+                      setForms((current) => ({
+                        ...current,
+                        immunization: {
+                          ...current.immunization,
+                          site: event.target.value,
+                        },
+                      }))
+                    }
+                  />
+                </label>
               </div>
-              <label className="block text-sm font-semibold">Notes<textarea className={fieldClass} value={forms.immunization.notes} onChange={(event) => setForms((current) => ({ ...current, immunization: { ...current.immunization, notes: event.target.value } }))} /></label>
+              <label className="block text-sm font-semibold">
+                Notes
+                <textarea
+                  className={fieldClass}
+                  value={forms.immunization.notes}
+                  onChange={(event) =>
+                    setForms((current) => ({
+                      ...current,
+                      immunization: {
+                        ...current.immunization,
+                        notes: event.target.value,
+                      },
+                    }))
+                  }
+                />
+              </label>
               <VaccinationMetadataFields
                 value={forms.immunization}
                 facilities={facilities}
                 currentUserName={user?.name || ""}
-                onChange={(next) => setForms((current) => ({ ...current, immunization: { ...current.immunization, ...next } }))}
+                onChange={(next) =>
+                  setForms((current) => ({
+                    ...current,
+                    immunization: { ...current.immunization, ...next },
+                  }))
+                }
               />
             </>
           ) : recordKind === "growth" ? (
             <>
-              <label className="block text-sm font-semibold">Measured<input required type="date" max={today()} className={fieldClass} value={forms.growth.measuredAt} onChange={(event) => setForms((current) => ({ ...current, growth: { ...current.growth, measuredAt: event.target.value } }))} /></label>
+              <label className="block text-sm font-semibold">
+                Measured
+                <input
+                  required
+                  type="date"
+                  max={localDateInputValue()}
+                  className={fieldClass}
+                  value={forms.growth.measuredAt}
+                  onChange={(event) =>
+                    setForms((current) => ({
+                      ...current,
+                      growth: {
+                        ...current.growth,
+                        measuredAt: event.target.value,
+                      },
+                    }))
+                  }
+                />
+              </label>
               <div className="grid gap-4 sm:grid-cols-3">
-                <label className="text-sm font-semibold">Weight (g)<input type="number" min="1" className={fieldClass} value={forms.growth.weightGrams} onChange={(event) => setForms((current) => ({ ...current, growth: { ...current.growth, weightGrams: event.target.value } }))} /></label>
-                <label className="text-sm font-semibold">Height (mm)<input type="number" min="1" className={fieldClass} value={forms.growth.heightMillimeters} onChange={(event) => setForms((current) => ({ ...current, growth: { ...current.growth, heightMillimeters: event.target.value } }))} /></label>
-                <label className="text-sm font-semibold">MUAC (mm)<input type="number" min="1" className={fieldClass} value={forms.growth.muacMillimeters} onChange={(event) => setForms((current) => ({ ...current, growth: { ...current.growth, muacMillimeters: event.target.value } }))} /></label>
+                <label className="text-sm font-semibold">
+                  Weight (g)
+                  <input
+                    type="number"
+                    min="1"
+                    className={fieldClass}
+                    value={forms.growth.weightGrams}
+                    onChange={(event) =>
+                      setForms((current) => ({
+                        ...current,
+                        growth: {
+                          ...current.growth,
+                          weightGrams: event.target.value,
+                        },
+                      }))
+                    }
+                  />
+                </label>
+                <label className="text-sm font-semibold">
+                  Height (mm)
+                  <input
+                    type="number"
+                    min="1"
+                    className={fieldClass}
+                    value={forms.growth.heightMillimeters}
+                    onChange={(event) =>
+                      setForms((current) => ({
+                        ...current,
+                        growth: {
+                          ...current.growth,
+                          heightMillimeters: event.target.value,
+                        },
+                      }))
+                    }
+                  />
+                </label>
+                <label className="text-sm font-semibold">
+                  MUAC (mm)
+                  <input
+                    type="number"
+                    min="1"
+                    className={fieldClass}
+                    value={forms.growth.muacMillimeters}
+                    onChange={(event) =>
+                      setForms((current) => ({
+                        ...current,
+                        growth: {
+                          ...current.growth,
+                          muacMillimeters: event.target.value,
+                        },
+                      }))
+                    }
+                  />
+                </label>
               </div>
-              <label className="flex gap-2 text-sm"><input type="checkbox" checked={forms.growth.vitaminAAdministered} onChange={(event) => setForms((current) => ({ ...current, growth: { ...current.growth, vitaminAAdministered: event.target.checked } }))} />Vitamin A administered</label>
-              <label className="flex gap-2 text-sm"><input type="checkbox" checked={forms.growth.oedemaPresent} onChange={(event) => setForms((current) => ({ ...current, growth: { ...current.growth, oedemaPresent: event.target.checked } }))} />Oedema present</label>
-              <label className="block text-sm font-semibold">Notes<textarea className={fieldClass} value={forms.growth.notes} onChange={(event) => setForms((current) => ({ ...current, growth: { ...current.growth, notes: event.target.value } }))} /></label>
+              <label className="flex gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={forms.growth.vitaminAAdministered}
+                  onChange={(event) =>
+                    setForms((current) => ({
+                      ...current,
+                      growth: {
+                        ...current.growth,
+                        vitaminAAdministered: event.target.checked,
+                      },
+                    }))
+                  }
+                />
+                Vitamin A administered
+              </label>
+              <label className="flex gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={forms.growth.oedemaPresent}
+                  onChange={(event) =>
+                    setForms((current) => ({
+                      ...current,
+                      growth: {
+                        ...current.growth,
+                        oedemaPresent: event.target.checked,
+                      },
+                    }))
+                  }
+                />
+                Oedema present
+              </label>
+              <label className="block text-sm font-semibold">
+                Notes
+                <textarea
+                  className={fieldClass}
+                  value={forms.growth.notes}
+                  onChange={(event) =>
+                    setForms((current) => ({
+                      ...current,
+                      growth: { ...current.growth, notes: event.target.value },
+                    }))
+                  }
+                />
+              </label>
             </>
           ) : recordKind === "alert" ? (
             <>
-              <label className="block text-sm font-semibold">Category<input required className={fieldClass} value={forms.alert.category} onChange={(event) => setForms((current) => ({ ...current, alert: { ...current.alert, category: event.target.value } }))} /></label>
-              <label className="block text-sm font-semibold">Severity<select className={fieldClass} value={forms.alert.severity} onChange={(event) => setForms((current) => ({ ...current, alert: { ...current.alert, severity: event.target.value } }))}><option>LOW</option><option>MODERATE</option><option>HIGH</option><option>CRITICAL</option></select></label>
-              <label className="block text-sm font-semibold">Summary<textarea required className={fieldClass} value={forms.alert.summary} onChange={(event) => setForms((current) => ({ ...current, alert: { ...current.alert, summary: event.target.value } }))} /></label>
-              <label className="flex gap-2 text-sm"><input type="checkbox" checked={forms.alert.emergencyVisible} onChange={(event) => setForms((current) => ({ ...current, alert: { ...current.alert, emergencyVisible: event.target.checked } }))} />Visible in emergency profile</label>
+              <label className="block text-sm font-semibold">
+                Category
+                <input
+                  required
+                  className={fieldClass}
+                  value={forms.alert.category}
+                  onChange={(event) =>
+                    setForms((current) => ({
+                      ...current,
+                      alert: { ...current.alert, category: event.target.value },
+                    }))
+                  }
+                />
+              </label>
+              <label className="block text-sm font-semibold">
+                Severity
+                <select
+                  className={fieldClass}
+                  value={forms.alert.severity}
+                  onChange={(event) =>
+                    setForms((current) => ({
+                      ...current,
+                      alert: { ...current.alert, severity: event.target.value },
+                    }))
+                  }
+                >
+                  <option>LOW</option>
+                  <option>MODERATE</option>
+                  <option>HIGH</option>
+                  <option>CRITICAL</option>
+                </select>
+              </label>
+              <label className="block text-sm font-semibold">
+                Summary
+                <textarea
+                  required
+                  className={fieldClass}
+                  value={forms.alert.summary}
+                  onChange={(event) =>
+                    setForms((current) => ({
+                      ...current,
+                      alert: { ...current.alert, summary: event.target.value },
+                    }))
+                  }
+                />
+              </label>
+              <label className="flex gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={forms.alert.emergencyVisible}
+                  onChange={(event) =>
+                    setForms((current) => ({
+                      ...current,
+                      alert: {
+                        ...current.alert,
+                        emergencyVisible: event.target.checked,
+                      },
+                    }))
+                  }
+                />
+                Visible in emergency profile
+              </label>
             </>
           ) : recordKind === "allergy" ? (
             <>
-              <label className="block text-sm font-semibold">Substance<input required className={fieldClass} value={forms.allergy.substanceDisplay} onChange={(event) => setForms((current) => ({ ...current, allergy: { ...current.allergy, substanceDisplay: event.target.value } }))} /></label>
-              <label className="block text-sm font-semibold">Reaction<input className={fieldClass} value={forms.allergy.reaction} onChange={(event) => setForms((current) => ({ ...current, allergy: { ...current.allergy, reaction: event.target.value } }))} /></label>
+              <label className="block text-sm font-semibold">
+                Substance
+                <input
+                  required
+                  className={fieldClass}
+                  value={forms.allergy.substanceDisplay}
+                  onChange={(event) =>
+                    setForms((current) => ({
+                      ...current,
+                      allergy: {
+                        ...current.allergy,
+                        substanceDisplay: event.target.value,
+                      },
+                    }))
+                  }
+                />
+              </label>
+              <label className="block text-sm font-semibold">
+                Reaction
+                <input
+                  className={fieldClass}
+                  value={forms.allergy.reaction}
+                  onChange={(event) =>
+                    setForms((current) => ({
+                      ...current,
+                      allergy: { ...current.allergy, reaction: event.target.value },
+                    }))
+                  }
+                />
+              </label>
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="text-sm font-semibold">Severity<select className={fieldClass} value={forms.allergy.severity} onChange={(event) => setForms((current) => ({ ...current, allergy: { ...current.allergy, severity: event.target.value } }))}><option>LOW</option><option>MODERATE</option><option>HIGH</option><option>CRITICAL</option></select></label>
-                <label className="text-sm font-semibold">Criticality<select className={fieldClass} value={forms.allergy.criticality} onChange={(event) => setForms((current) => ({ ...current, allergy: { ...current.allergy, criticality: event.target.value } }))}><option>LOW</option><option>HIGH</option><option>UNABLE_TO_ASSESS</option></select></label>
+                <label className="text-sm font-semibold">
+                  Severity
+                  <select
+                    className={fieldClass}
+                    value={forms.allergy.severity}
+                    onChange={(event) =>
+                      setForms((current) => ({
+                        ...current,
+                        allergy: {
+                          ...current.allergy,
+                          severity: event.target.value,
+                        },
+                      }))
+                    }
+                  >
+                    <option>LOW</option>
+                    <option>MODERATE</option>
+                    <option>HIGH</option>
+                    <option>CRITICAL</option>
+                  </select>
+                </label>
+                <label className="text-sm font-semibold">
+                  Criticality
+                  <select
+                    className={fieldClass}
+                    value={forms.allergy.criticality}
+                    onChange={(event) =>
+                      setForms((current) => ({
+                        ...current,
+                        allergy: {
+                          ...current.allergy,
+                          criticality: event.target.value,
+                        },
+                      }))
+                    }
+                  >
+                    <option>LOW</option>
+                    <option>HIGH</option>
+                    <option>UNABLE_TO_ASSESS</option>
+                  </select>
+                </label>
               </div>
             </>
           ) : (
             <>
-              <label className="block text-sm font-semibold">Appointment kind<input required className={fieldClass} value={forms.appointment.kind} onChange={(event) => setForms((current) => ({ ...current, appointment: { ...current.appointment, kind: event.target.value } }))} /></label>
-              <label className="block text-sm font-semibold">Scheduled for<input required type="datetime-local" className={fieldClass} value={forms.appointment.scheduledFor} onChange={(event) => setForms((current) => ({ ...current, appointment: { ...current.appointment, scheduledFor: event.target.value } }))} /></label>
-              <label className="block text-sm font-semibold">Notes<textarea className={fieldClass} value={forms.appointment.notes} onChange={(event) => setForms((current) => ({ ...current, appointment: { ...current.appointment, notes: event.target.value } }))} /></label>
+              <label className="block text-sm font-semibold">
+                Appointment kind
+                <input
+                  required
+                  className={fieldClass}
+                  value={forms.appointment.kind}
+                  onChange={(event) =>
+                    setForms((current) => ({
+                      ...current,
+                      appointment: {
+                        ...current.appointment,
+                        kind: event.target.value,
+                      },
+                    }))
+                  }
+                />
+              </label>
+              <label className="block text-sm font-semibold">
+                Scheduled for
+                <input
+                  required
+                  type="datetime-local"
+                  className={fieldClass}
+                  value={forms.appointment.scheduledFor}
+                  onChange={(event) =>
+                    setForms((current) => ({
+                      ...current,
+                      appointment: {
+                        ...current.appointment,
+                        scheduledFor: event.target.value,
+                      },
+                    }))
+                  }
+                />
+              </label>
+              <label className="block text-sm font-semibold">
+                Notes
+                <textarea
+                  className={fieldClass}
+                  value={forms.appointment.notes}
+                  onChange={(event) =>
+                    setForms((current) => ({
+                      ...current,
+                      appointment: {
+                        ...current.appointment,
+                        notes: event.target.value,
+                      },
+                    }))
+                  }
+                />
+              </label>
             </>
           )}
-          <button className={primaryButton} disabled={busy}>{busy ? "Saving…" : "Save record"}</button>
+          <button className={primaryButton} disabled={busy}>
+            {busy ? "Saving…" : "Save record"}
+          </button>
         </form>
       </Modal>
 
@@ -939,15 +1660,21 @@ export default function ClinicalOperations() {
         {amendTarget && (
           <form className="space-y-4" onSubmit={(event) => void saveAmendment(event)}>
             <div className="rounded-lg bg-slate-50 p-3 text-sm">
-              <strong>{amendTarget.vaccineCode} dose {amendTarget.doseNumber}</strong>
-              <p className="mt-1 text-xs text-slate-500">Administered {new Date(amendTarget.administeredAt).toLocaleString()}</p>
+              <strong>
+                {amendTarget.vaccineCode} dose {amendTarget.doseNumber}
+              </strong>
+              <p className="mt-1 text-xs text-slate-500">
+                Administered {new Date(amendTarget.administeredAt).toLocaleString()}
+              </p>
             </div>
             <VaccinationMetadataFields
               value={amendForm}
               facilities={facilities}
               currentUserName={user?.name || ""}
               historical={!certificateMetadataComplete(amendTarget)}
-              onChange={(next) => setAmendForm((current) => ({ ...current, ...next }))}
+              onChange={(next) =>
+                setAmendForm((current) => ({ ...current, ...next }))
+              }
             />
             <label className="block text-sm font-semibold">
               Amendment reason
@@ -956,18 +1683,32 @@ export default function ClinicalOperations() {
                 minLength={3}
                 className={fieldClass}
                 value={amendForm.reason}
-                onChange={(event) => setAmendForm((current) => ({ ...current, reason: event.target.value }))}
+                onChange={(event) =>
+                  setAmendForm((current) => ({
+                    ...current,
+                    reason: event.target.value,
+                  }))
+                }
                 placeholder="Example: Verified original paper vaccination register"
               />
             </label>
-            <button className={primaryButton} disabled={busy || amendForm.reason.trim().length < 3}>{busy ? "Saving…" : "Save amendment"}</button>
+            <button
+              className={primaryButton}
+              disabled={busy || amendForm.reason.trim().length < 3}
+            >
+              {busy ? "Saving…" : "Save amendment"}
+            </button>
           </form>
         )}
       </Modal>
 
       <ActionReasonModal
         open={Boolean(resolveTarget)}
-        title={resolveTarget?.kind === "alert" ? "Resolve clinical alert" : "Resolve allergy record"}
+        title={
+          resolveTarget?.kind === "alert"
+            ? "Resolve clinical alert"
+            : "Resolve allergy record"
+        }
         description="A reason is required and will be retained in the audit trail."
         confirmLabel="Resolve"
         busy={busy}
@@ -976,9 +1717,16 @@ export default function ClinicalOperations() {
           if (!organizationId || !resolveTarget) return;
           const target = resolveTarget;
           const saved = await run(
-            () => target.kind === "alert"
-              ? medfinetClinicalApi.resolveAlert(organizationId, target.id, { status: "RESOLVED", reason })
-              : medfinetClinicalApi.resolveAllergy(organizationId, target.id, { status: "RESOLVED", resolutionReason: reason }),
+            () =>
+              target.kind === "alert"
+                ? medfinetClinicalApi.resolveAlert(organizationId, target.id, {
+                    status: "RESOLVED",
+                    reason,
+                  })
+                : medfinetClinicalApi.resolveAllergy(organizationId, target.id, {
+                    status: "RESOLVED",
+                    resolutionReason: reason,
+                  }),
             `${target.kind} resolved.`,
           );
           if (saved) setResolveTarget(null);
