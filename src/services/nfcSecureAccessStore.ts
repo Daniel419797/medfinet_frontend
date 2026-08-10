@@ -28,8 +28,12 @@ export function readNfcVaccineAccess(
     vaccineAccess.delete(publicId);
     return null;
   }
-  const { savedAt: _savedAt, ...access } = stored;
-  return access;
+  return {
+    organizationId: stored.organizationId,
+    childId: stored.childId,
+    childName: stored.childName,
+    immunizations: stored.immunizations,
+  };
 }
 
 export function clearNfcVaccineAccess(publicId: string) {
