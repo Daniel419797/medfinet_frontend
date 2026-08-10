@@ -1,5 +1,19 @@
-import { useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { Download, Loader2, RefreshCw, Search, Syringe } from "lucide-react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import {
+  Download,
+  Eye,
+  FileCheck2,
+  Loader2,
+  RefreshCw,
+  Search,
+  Syringe,
+} from "lucide-react";
 import { PageFeedback } from "../../components/common/PageFeedback";
 import UserContext from "../../contexts/UserContext";
 import { medfinetClinicalApi } from "../../services/medfinetClinicalApi";
@@ -11,9 +25,22 @@ type Child = Awaited<
 type Timeline = Awaited<
   ReturnType<typeof medfinetClinicalApi.getClinicalTimeline>
 >;
+type Immunization = Timeline["immunizations"][number];
+type CertificatePreview = {
+  immunizationId: string;
+  url: string;
+  filename: string;
+  label: string;
+};
 
 const secondaryButton =
-  "inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60";
+const primaryButton =
+  "inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60";
+
+function certificateAvailable(vaccination: Immunization) {
+  return ["ACTIVE", "AMENDED"].includes(vaccination.status);
+}
 
 export default function VaccineCertificates() {
   const { organizationId } = useContext(UserContext);
@@ -24,8 +51,18 @@ export default function VaccineCertificates() {
   const [loadingChildren, setLoadingChildren] = useState(true);
   const [loadingTimeline, setLoadingTimeline] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [downloadId, setDownloadId] = useState<string | null>(null);
+  const [previewBusyId, setPreviewBusyId] = useState<string | null>(null);
+  const [preview, setPreview] = useState<CertificatePreview | null>(null);
   const selected = children.find((child) => child.id === selectedId) || null;
+
+  const clearPreview = useCallback(() => {
+    setPreview((current) => {
+      if (current?.url) URL.revokeObjectURL(current.url);
+      return null;
+    });
+  }, []);
+
+  useEffect(() => () => clearPreview(), [clearPreview]);
 
   const loadChildren = useCallback(async () => {
     if (!organizationId) return;
@@ -53,10 +90,12 @@ export default function VaccineCertificates() {
   const loadTimeline = useCallback(async () => {
     if (!organizationId || !selectedId) {
       setTimeline(null);
+      clearPreview();
       return;
     }
     setLoadingTimeline(true);
     setError(null);
+    clearPreview();
     try {
       setTimeline(
         await medfinetClinicalApi.getClinicalTimeline(organizationId, selectedId),
@@ -71,7 +110,7 @@ export default function VaccineCertificates() {
     } finally {
       setLoadingTimeline(false);
     }
-  }, [organizationId, selectedId]);
+  }, [clearPreview, organizationId, selectedId]);
 
   useEffect(() => {
     void loadChildren();
@@ -91,46 +130,71 @@ export default function VaccineCertificates() {
     );
   }, [children, query]);
 
-  const downloadCertificate = async (immunizationId: string) => {
-    if (!organizationId || !selectedId) return;
-    setDownloadId(immunizationId);
-    setError(null);
-    try {
-      const { blob, filename } =
-        await medfinetClinicalApi.downloadImmunizationCertificate(
-          organizationId,
-          selectedId,
-          immunizationId,
+  const showCertificate = useCallback(
+    async (vaccination: Immunization) => {
+      if (!organizationId || !selectedId || !certificateAvailable(vaccination)) {
+        return;
+      }
+      if (preview?.immunizationId === vaccination.id) return;
+
+      setPreviewBusyId(vaccination.id);
+      setError(null);
+      try {
+        const { blob, filename } =
+          await medfinetClinicalApi.downloadImmunizationCertificate(
+            organizationId,
+            selectedId,
+            vaccination.id,
+          );
+        const objectUrl = URL.createObjectURL(blob);
+        setPreview((current) => {
+          if (current?.url) URL.revokeObjectURL(current.url);
+          return {
+            immunizationId: vaccination.id,
+            url: objectUrl,
+            filename: filename || "vaccination-certificate.png",
+            label: `${vaccination.vaccineCode} dose ${vaccination.doseNumber}`,
+          };
+        });
+      } catch (reason) {
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : "Unable to prepare the vaccination certificate",
         );
-      const objectUrl = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = objectUrl;
-      link.download = filename || "vaccination-certificate.png";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
-    } catch (reason) {
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "Unable to download the vaccination certificate",
-      );
-    } finally {
-      setDownloadId(null);
-    }
+      } finally {
+        setPreviewBusyId(null);
+      }
+    },
+    [organizationId, preview?.immunizationId, selectedId],
+  );
+
+  useEffect(() => {
+    if (loadingTimeline || preview || previewBusyId) return;
+    const firstAvailable = timeline?.immunizations.find(certificateAvailable);
+    if (firstAvailable) void showCertificate(firstAvailable);
+  }, [loadingTimeline, preview, previewBusyId, showCertificate, timeline]);
+
+  const downloadPreview = () => {
+    if (!preview) return;
+    const link = document.createElement("a");
+    link.href = preview.url;
+    link.download = preview.filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   };
 
   return (
     <main className="space-y-6">
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
         <div>
-          <p className="text-sm font-semibold text-cyan-700">Immunization records</p>
+          <p className="text-sm font-semibold text-emerald-700">Immunization records</p>
           <h1 className="mt-1 text-3xl font-bold text-slate-950 dark:text-white">
             Vaccines & certificates
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
-            Review each child&apos;s recorded vaccines and download the certificate for an active vaccination record.
+            Select a child and vaccine to view the generated vaccination certificate exactly as it will be downloaded.
           </p>
         </div>
         <button
@@ -172,7 +236,7 @@ export default function VaccineCertificates() {
             emptyTitle="No child records"
             emptyDescription="No matching child records were found."
           >
-            <div className="mt-3 max-h-[68vh] space-y-2 overflow-y-auto">
+            <div className="mt-3 max-h-[72vh] space-y-2 overflow-y-auto">
               {filteredChildren.map((child) => (
                 <button
                   key={child.id}
@@ -180,7 +244,7 @@ export default function VaccineCertificates() {
                   onClick={() => setSelectedId(child.id)}
                   className={`w-full rounded-lg p-3 text-left transition ${
                     selectedId === child.id
-                      ? "bg-cyan-50 ring-1 ring-cyan-300"
+                      ? "bg-emerald-50 ring-1 ring-emerald-300"
                       : "hover:bg-slate-50"
                   }`}
                 >
@@ -208,12 +272,12 @@ export default function VaccineCertificates() {
               <div className="space-y-5">
                 <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="flex items-start gap-4">
-                    <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-cyan-50 font-bold text-cyan-800">
+                    <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-emerald-50 font-bold text-emerald-800">
                       {selected.firstName[0]}
                       {selected.lastName[0]}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs font-bold uppercase tracking-wide text-cyan-700">
+                      <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">
                         {selected.medfinetId}
                       </p>
                       <h2 className="mt-1 text-2xl font-bold text-slate-950">
@@ -226,71 +290,136 @@ export default function VaccineCertificates() {
                   </div>
                 </section>
 
-                <section className="space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-lg font-bold text-slate-950">
-                        Recorded vaccines
-                      </h3>
-                      <p className="text-sm text-slate-600">
-                        {timeline?.immunizations.length || 0} immunization record(s)
-                      </p>
+                <div className="grid gap-5 2xl:grid-cols-[360px_minmax(0,1fr)]">
+                  <section className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-950">
+                          Recorded vaccines
+                        </h3>
+                        <p className="text-sm text-slate-600">
+                          {timeline?.immunizations.length || 0} immunization record(s)
+                        </p>
+                      </div>
+                      <Syringe className="h-5 w-5 text-emerald-700" />
                     </div>
-                    <Syringe className="h-5 w-5 text-cyan-700" />
-                  </div>
 
-                  {timeline?.immunizations.length ? (
-                    timeline.immunizations.map((vaccination) => {
-                      const certificateAvailable = ["ACTIVE", "AMENDED"].includes(
-                        vaccination.status,
-                      );
-                      return (
-                        <article
-                          key={vaccination.id}
-                          className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
-                        >
-                          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-                            <div>
-                              <p className="font-bold text-slate-950">
-                                {vaccination.vaccineCode} · dose {vaccination.doseNumber}
-                              </p>
-                              <p className="mt-1 text-sm text-slate-600">
-                                Administered {new Date(vaccination.administeredAt).toLocaleString()}
-                              </p>
-                              <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                {vaccination.status}
-                              </p>
-                            </div>
+                    {timeline?.immunizations.length ? (
+                      timeline.immunizations.map((vaccination) => {
+                        const available = certificateAvailable(vaccination);
+                        const active = preview?.immunizationId === vaccination.id;
+                        const busy = previewBusyId === vaccination.id;
+                        return (
+                          <article
+                            key={vaccination.id}
+                            className={`rounded-xl border bg-white p-4 shadow-sm transition ${
+                              active
+                                ? "border-emerald-400 ring-2 ring-emerald-100"
+                                : "border-slate-200"
+                            }`}
+                          >
+                            <p className="font-bold text-slate-950">
+                              {vaccination.vaccineCode} · dose {vaccination.doseNumber}
+                            </p>
+                            <p className="mt-1 text-sm text-slate-600">
+                              {new Date(vaccination.administeredAt).toLocaleString()}
+                            </p>
+                            <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              {vaccination.status}
+                            </p>
                             <button
                               type="button"
-                              className={secondaryButton}
-                              disabled={!certificateAvailable || downloadId !== null}
+                              className={`${secondaryButton} mt-4 w-full`}
+                              disabled={!available || previewBusyId !== null}
+                              onClick={() => void showCertificate(vaccination)}
                               title={
-                                certificateAvailable
-                                  ? "Download vaccination certificate"
+                                available
+                                  ? "View generated vaccination certificate"
                                   : `Certificate unavailable for ${vaccination.status.toLowerCase()} records`
                               }
-                              onClick={() => void downloadCertificate(vaccination.id)}
                             >
-                              {downloadId === vaccination.id ? (
+                              {busy ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
-                                <Download className="h-4 w-4" />
+                                <Eye className="h-4 w-4" />
                               )}
-                              {downloadId === vaccination.id
+                              {busy
                                 ? "Preparing certificate…"
-                                : "Download certificate"}
+                                : active
+                                  ? "Certificate shown"
+                                  : "View certificate"}
                             </button>
+                          </article>
+                        );
+                      })
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+                        No vaccinations have been recorded for this child yet.
+                      </div>
+                    )}
+                  </section>
+
+                  <section className="min-w-0">
+                    <div className="sticky top-4 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 shadow-sm sm:p-5">
+                      <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <FileCheck2 className="h-5 w-5 text-emerald-700" />
+                            <h3 className="font-bold text-slate-950">
+                              Certificate preview
+                            </h3>
                           </div>
-                        </article>
-                      );
-                    })
-                  ) : (
-                    <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-                      No vaccinations have been recorded for this child yet.
+                          <p className="mt-1 text-xs text-slate-600">
+                            The image below is the same PNG file that will be downloaded.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          className={primaryButton}
+                          onClick={downloadPreview}
+                          disabled={!preview}
+                        >
+                          <Download className="h-4 w-4" />
+                          Download certificate
+                        </button>
+                      </div>
+
+                      {preview ? (
+                        <div className="mx-auto max-w-[720px]">
+                          <div className="overflow-hidden rounded-xl border border-emerald-300 bg-white shadow-lg">
+                            <img
+                              src={preview.url}
+                              alt={`Vaccination certificate for ${selected.firstName} ${selected.lastName} — ${preview.label}`}
+                              className="block h-auto w-full"
+                            />
+                          </div>
+                          <p className="mt-3 text-center text-xs text-slate-500">
+                            {preview.label} · generated from the current Medfinet record
+                          </p>
+                        </div>
+                      ) : previewBusyId ? (
+                        <div className="grid min-h-[520px] place-items-center rounded-xl border border-dashed border-emerald-300 bg-white/80">
+                          <div className="text-center text-sm text-slate-600">
+                            <Loader2 className="mx-auto mb-3 h-7 w-7 animate-spin text-emerald-700" />
+                            Preparing certificate preview…
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid min-h-[420px] place-items-center rounded-xl border border-dashed border-emerald-300 bg-white/80 p-8 text-center">
+                          <div>
+                            <FileCheck2 className="mx-auto h-9 w-9 text-emerald-700" />
+                            <p className="mt-3 font-semibold text-slate-900">
+                              No certificate selected
+                            </p>
+                            <p className="mt-1 text-sm text-slate-600">
+                              Choose an active or amended vaccination record to view its certificate.
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </section>
+                  </section>
+                </div>
               </div>
             )}
           </PageFeedback>
