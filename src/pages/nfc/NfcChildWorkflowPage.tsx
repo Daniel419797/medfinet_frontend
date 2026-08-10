@@ -285,13 +285,22 @@ export function NfcClinicalRecordPage() {
                         ? `Verified on ${certificatePreview.evidence.network || 'Algorand'}`
                         : certificatePreview.evidence.status === 'PENDING'
                           ? 'Algorand verification pending'
-                          : certificatePreview.evidence.status === 'MISMATCH'
-                            ? 'Algorand proof mismatch'
-                            : 'Algorand verification is not yet confirmed'}
+                          : certificatePreview.evidence.status === 'UNCONFIRMED'
+                            ? 'Algorand transaction awaiting confirmation'
+                            : certificatePreview.evidence.status === 'DISABLED'
+                              ? 'Algorand verification is not configured'
+                              : certificatePreview.evidence.status === 'MISMATCH'
+                                ? 'Algorand proof mismatch'
+                                : 'Algorand verification is temporarily unavailable'}
                     </p>
                     <p className="mt-1 text-xs leading-5 opacity-80">
                       Only a cryptographic fingerprint is anchored. No child identity or medical details are written to Algorand.
                     </p>
+                    {certificatePreview.evidence.txId && (
+                      <p className="mt-2 break-all text-xs opacity-75">
+                        Transaction: {certificatePreview.evidence.txId}
+                      </p>
+                    )}
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
                     {certificatePreview.evidence.explorerUrl && (
