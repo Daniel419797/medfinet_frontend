@@ -84,6 +84,13 @@ const templates: Record<SyncOperationType, Payload> = {
     administeredAt: currentDateTime(),
     route: "IM",
     lotNumber: "",
+    facilityId: "",
+    facilityName: "",
+    state: "",
+    lga: "",
+    ward: "",
+    vaccinatorMode: "SELF",
+    vaccinatorName: "",
   },
   "RESPONSE.DELIVERY_RECORD": {
     entryId: "",
@@ -159,6 +166,7 @@ export default function OfflineSync() {
   });
   const [entityId, setEntityId] = useState("");
   const [baseVersion, setBaseVersion] = useState("");
+  const currentUserName = String(user?.name || "").trim();
 
   const load = useCallback(async () => {
     if (!organizationId || !user) return;
@@ -240,10 +248,22 @@ export default function OfflineSync() {
     event.preventDefault();
     setError(null);
     try {
+      const payloadForQueue: Payload = { ...payload };
+      if (
+        operationType === "CLINICAL.IMMUNIZATION_RECORD"
+        && payloadForQueue.vaccinatorMode === "SELF"
+      ) {
+        if (!currentUserName) {
+          throw new Error(
+            "Your account needs a display name before you can queue yourself as the vaccinator.",
+          );
+        }
+        payloadForQueue.vaccinatorName = currentUserName;
+      }
       const operation: SyncOperationInput = {
         clientOperationId: crypto.randomUUID(),
         operationType,
-        payload: isoPayload(operationType, payload),
+        payload: isoPayload(operationType, payloadForQueue),
         ...(entityId.trim() && { entityId: entityId.trim() }),
         ...(baseVersion && { baseVersion: Number(baseVersion) }),
       };
@@ -469,7 +489,12 @@ export default function OfflineSync() {
             </select>
           </label>
 
-          <OperationFields type={operationType} payload={payload} onChange={setPayload} />
+          <OperationFields
+            type={operationType}
+            payload={payload}
+            currentUserName={currentUserName}
+            onChange={setPayload}
+          />
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="text-sm font-semibold">
@@ -491,10 +516,12 @@ export default function OfflineSync() {
 function OperationFields({
   type,
   payload,
+  currentUserName,
   onChange,
 }: {
   type: SyncOperationType;
   payload: Payload;
+  currentUserName: string;
   onChange: (next: Payload) => void;
 }) {
   const set = (name: string, value: string | number | boolean) =>
@@ -531,7 +558,54 @@ function OperationFields({
     return <>{text("childId", "Child ID")}{dateTime("measuredAt", "Measured at")}<div className="grid gap-4 sm:grid-cols-3">{number("weightGrams", "Weight (g)")}{number("heightMillimeters", "Height (mm)")}{number("muacMillimeters", "MUAC (mm)")}</div></>;
   }
   if (type === "CLINICAL.IMMUNIZATION_RECORD") {
-    return <>{text("childId", "Child ID")}<div className="grid gap-4 sm:grid-cols-2">{text("vaccineCode", "Vaccine code")}{number("doseNumber", "Dose number", 1)}</div>{dateTime("administeredAt", "Administered at")}<div className="grid gap-4 sm:grid-cols-2">{text("route", "Route")}{text("lotNumber", "Lot number", false)}</div></>;
+    const vaccinatorMode = String(payload.vaccinatorMode || "SELF");
+    return (
+      <>
+        {text("childId", "Child ID")}
+        <div className="grid gap-4 sm:grid-cols-2">
+          {text("vaccineCode", "Vaccine code")}
+          {number("doseNumber", "Dose number", 1)}
+        </div>
+        {dateTime("administeredAt", "Administered at")}
+        <div className="grid gap-4 sm:grid-cols-2">
+          {text("route", "Route")}
+          {text("lotNumber", "Lot number", false)}
+        </div>
+        <div className="space-y-4 rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
+          <div>
+            <p className="font-semibold text-slate-900">Certificate details</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600">
+              Copy the registered facility ID and confirm the location values from the authorized offline workflow. They are encrypted with this operation and snapshotted when synchronization succeeds.
+            </p>
+          </div>
+          {text("facilityId", "Registered facility ID")}
+          {text("facilityName", "Health facility name")}
+          <div className="grid gap-4 sm:grid-cols-3">
+            {text("state", "State")}
+            {text("lga", "LGA")}
+            {text("ward", "Ward")}
+          </div>
+          <label className="block text-sm font-semibold">
+            Who administered the vaccine?
+            <select
+              className={input}
+              value={vaccinatorMode}
+              onChange={(event) => set("vaccinatorMode", event.target.value)}
+            >
+              <option value="SELF">Me — {currentUserName || "current account"}</option>
+              <option value="OTHER">Another / external vaccinator</option>
+            </select>
+          </label>
+          {vaccinatorMode === "OTHER"
+            ? text("vaccinatorName", "Vaccinator name")
+            : (
+              <p className="rounded-lg bg-white p-3 text-xs text-slate-600">
+                The authenticated worker ID remains the vaccinator ID. The display name stored in the encrypted payload is {currentUserName || "taken from your account when available"}.
+              </p>
+            )}
+        </div>
+      </>
+    );
   }
   if (type === "RESPONSE.DELIVERY_RECORD") {
     return <>{text("entryId", "Worklist entry ID")}<div className="grid gap-4 sm:grid-cols-2">{text("category", "Delivery category")}{number("quantity", "Quantity", 1)}</div>{text("unit", "Unit")}{dateTime("deliveredAt", "Delivered at")}{text("notes", "Notes", false)}</>;
