@@ -14,6 +14,7 @@ type Props = {
   organizationId: string;
   vaccination: Immunization | null;
   facilities: MedfinetFacility[];
+  currentUserId: string;
   currentUserName: string;
   onClose: () => void;
   onSaved: () => Promise<void> | void;
@@ -47,15 +48,14 @@ function isComplete(vaccination: Immunization | null) {
 
 function initialForm(
   vaccination: Immunization | null,
-  currentUserName: string,
+  currentUserId: string,
 ): FormState {
   const metadata = vaccination?.certificateMetadata;
   const historical = !isComplete(vaccination);
   const isSelf = Boolean(
-    metadata?.vaccinatorName &&
-      currentUserName &&
-      metadata.vaccinatorName.trim().toLowerCase() ===
-        currentUserName.trim().toLowerCase(),
+    metadata?.vaccinatorSubjectId &&
+      currentUserId &&
+      metadata.vaccinatorSubjectId === currentUserId,
   );
 
   return {
@@ -80,12 +80,13 @@ export default function VaccinationCertificateMetadataModal({
   organizationId,
   vaccination,
   facilities,
+  currentUserId,
   currentUserName,
   onClose,
   onSaved,
 }: Props) {
   const [form, setForm] = useState<FormState>(() =>
-    initialForm(vaccination, currentUserName),
+    initialForm(vaccination, currentUserId),
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -102,9 +103,9 @@ export default function VaccinationCertificateMetadataModal({
 
   useEffect(() => {
     if (!open) return;
-    setForm(initialForm(vaccination, currentUserName));
+    setForm(initialForm(vaccination, currentUserId));
     setError("");
-  }, [currentUserName, open, vaccination]);
+  }, [currentUserId, open, vaccination]);
 
   function selectFacility(value: string) {
     const facility = facilities.find((row) => row.id === value);
@@ -123,10 +124,7 @@ export default function VaccinationCertificateMetadataModal({
       ...current,
       facilitySelection: value,
       facilityName: value === MANUAL_FACILITY ? "" : facility?.name || "",
-      state:
-        value === MANUAL_FACILITY
-          ? ""
-          : facility?.state || facility?.administrativeArea || "",
+      state: value === MANUAL_FACILITY ? "" : facility?.state || "",
       lga: value === MANUAL_FACILITY ? "" : facility?.lga || "",
       ward: value === MANUAL_FACILITY ? "" : facility?.ward || "",
     }));
