@@ -56,12 +56,70 @@ export type VaccinationCertificateEvidence = {
   nft?: CertificateNftEvidence;
 };
 
+export type VaccinationCertificateMetadata = {
+  facilityId: string | null;
+  facilityName: string;
+  state: string;
+  lga: string;
+  ward: string;
+  vaccinatorName: string;
+  vaccinatorSubjectId: string | null;
+  recordedBySubjectId: string;
+};
+
 export type ClinicalTimeline = {
-  immunizations: Array<{ id: string; vaccineCode: string; doseNumber: number; administeredAt: string; status: string }>;
+  immunizations: Array<{
+    id: string;
+    vaccineCode: string;
+    doseNumber: number;
+    administeredAt: string;
+    status: string;
+    facilityId?: string | null;
+    lotNumber?: string | null;
+    route?: string | null;
+    site?: string | null;
+    notes?: string | null;
+    certificateMetadata?: VaccinationCertificateMetadata | null;
+  }>;
   growth: Array<{ id: string; measuredAt: string; weightGrams?: number; heightMillimeters?: number; muacMillimeters?: number; vitaminAAdministered: boolean; oedemaPresent: boolean; notes?: string; status: string }>;
   alerts: Array<{ id: string; category: string; severity: string; summary: string; status: string }>;
   allergies: Array<{ id: string; substanceDisplay: string; reaction?: string; severity: string; criticality: string; status: string }>;
   appointments: Array<{ id: string; kind: string; scheduledFor: string; status: string; notes?: string }>;
+};
+
+type VaccinatorInput = {
+  vaccinatorMode?: 'SELF' | 'OTHER';
+  vaccinatorName?: string;
+};
+
+type CertificateLocationInput = {
+  facilityId?: string;
+  facilityName?: string;
+  state?: string;
+  lga?: string;
+  ward?: string;
+};
+
+export type ImmunizationInput = CertificateLocationInput & VaccinatorInput & {
+  vaccineCode: string;
+  doseNumber: number;
+  administeredAt: string;
+  lotNumber?: string;
+  route?: string;
+  site?: string;
+  notes?: string;
+  sourceOperationId?: string;
+};
+
+export type ImmunizationAmendmentInput = CertificateLocationInput & VaccinatorInput & {
+  vaccineCode?: string;
+  doseNumber?: number;
+  administeredAt?: string;
+  lotNumber?: string;
+  route?: string;
+  site?: string;
+  notes?: string;
+  reason: string;
 };
 
 type GrowthInput = {
@@ -83,17 +141,12 @@ export const medfinetClinicalApi = {
   },
 
   // Immunizations
-  recordImmunization(orgId: string, childId: string, body: {
-    vaccineCode: string; doseNumber: number; administeredAt: string;
-    lotNumber?: string; route?: string; site?: string; notes?: string; sourceOperationId?: string;
-  }) {
-    return request<{ id: string }>(`/children/${encodeURIComponent(childId)}/immunizations`, {
+  recordImmunization(orgId: string, childId: string, body: ImmunizationInput) {
+    return request<{ id: string; certificateMetadata?: VaccinationCertificateMetadata | null }>(`/children/${encodeURIComponent(childId)}/immunizations`, {
       method: 'POST', body, organizationId: orgId, purpose: 'immunization-recording',
     });
   },
-  amendImmunization(orgId: string, immunizationId: string, body: {
-    administeredAt?: string; lotNumber?: string; notes?: string; reason: string;
-  }) {
+  amendImmunization(orgId: string, immunizationId: string, body: ImmunizationAmendmentInput) {
     return request(`/immunizations/${encodeURIComponent(immunizationId)}`, {
       method: 'PATCH', body, organizationId: orgId, purpose: 'immunization-amendment',
     });

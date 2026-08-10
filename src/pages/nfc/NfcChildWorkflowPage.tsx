@@ -1,10 +1,66 @@
-import { FormEvent, useContext, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Blocks, CheckCircle2, Download, ExternalLink, Loader2, RefreshCw, ShieldAlert, Syringe, X } from 'lucide-react';
+import {
+  type FormEvent,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Blocks,
+  CheckCircle2,
+  Download,
+  ExternalLink,
+  Loader2,
+  MapPin,
+  RefreshCw,
+  ShieldAlert,
+  Syringe,
+  X,
+} from 'lucide-react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { medfinetClinicalApi, type VaccinationCertificateEvidence } from '../../services/medfinetClinicalApi';
+import {
+  medfinetClinicalApi,
+  type VaccinationCertificateEvidence,
+} from '../../services/medfinetClinicalApi';
+import {
+  medfinetFacilityApi,
+  type MedfinetFacility,
+} from '../../services/medfinetFacilityApi';
 import UserContext from '../../contexts/UserContext';
 
 type Timeline = Awaited<ReturnType<typeof medfinetClinicalApi.getClinicalTimeline>>;
+type EmergencyProfile = Awaited<ReturnType<typeof medfinetClinicalApi.getEmergencyProfile>>;
+const MANUAL_FACILITY = '__MANUAL__';
+const fieldClass = 'mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5';
+
+function localDateInputValue() {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
+    .toISOString()
+    .slice(0, 10);
+}
+
+function evidencePrivacyMessage(status: VaccinationCertificateEvidence['status']) {
+  if (status === 'CONFIRMED') {
+    return 'Verification confirmed: the Algorand transaction contains only a cryptographic fingerprint. No child identity or medical details are written to Algorand.';
+  }
+  if (status === 'UNCONFIRMED') {
+    return 'A transaction was found but is not yet confirmed. Medfinet does not treat it as verified, and child identity or medical details are not included in the blockchain payload.';
+  }
+  if (status === 'MISMATCH') {
+    return 'The located proof does not match the expected certificate fingerprint. Medfinet does not claim verification, and child identity or medical details are not published on-chain.';
+  }
+  if (status === 'PENDING') {
+    return 'A privacy-preserving proof is queued or awaiting a receipt. Child identity and medical details are not included in the blockchain payload.';
+  }
+  if (status === 'DISABLED') {
+    return 'Blockchain verification is disabled, so no Algorand anchor is being claimed. Certificate and child data remain off-chain.';
+  }
+  return 'Blockchain verification could not be confirmed. Medfinet does not claim an anchor until verification succeeds, and child identity or medical details are not published on-chain.';
+}
 
 function unavailableEvidence(recordId: string): VaccinationCertificateEvidence {
   return {
@@ -23,15 +79,16 @@ function unavailableEvidence(recordId: string): VaccinationCertificateEvidence {
     chainConfirmed: null,
   };
 }
-type EmergencyProfile = Awaited<ReturnType<typeof medfinetClinicalApi.getEmergencyProfile>>;
 
-function WorkflowShell({ title, children }: { title: string; children: React.ReactNode }) {
+function WorkflowShell({ title, children }: { title: string; children: ReactNode }) {
   const location = useLocation();
   const scannerPath = location.pathname.startsWith('/nfc/') ? '/nfc/scanner' : '/health-worker/nfc';
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-950 sm:px-6">
       <div className="mx-auto max-w-4xl">
-        <Link to={scannerPath} className="inline-flex items-center gap-2 text-sm font-semibold text-cyan-800"><ArrowLeft size={17} /> Back to scanner</Link>
+        <Link to={scannerPath} className="inline-flex items-center gap-2 text-sm font-semibold text-cyan-800">
+          <ArrowLeft size={17} /> Back to scanner
+        </Link>
         <h1 className="mt-5 text-3xl font-bold">{title}</h1>
         <div className="mt-6">{children}</div>
       </div>
@@ -56,11 +113,14 @@ export function NfcClinicalRecordPage() {
   const certificatePreviewUrl = useRef<string | null>(null);
   const certificatePageMounted = useRef(true);
   const [certificateEvidenceBusy, setCertificateEvidenceBusy] = useState(false);
+
   useEffect(() => {
     if (!organizationId) return;
     medfinetClinicalApi.getClinicalTimeline(organizationId, childId)
       .then(setTimeline)
-      .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : 'Could not load clinical record'));
+      .catch((caught: unknown) => setError(
+        caught instanceof Error ? caught.message : 'Could not load clinical record',
+      ));
   }, [childId, organizationId]);
 
   useEffect(() => {
@@ -171,6 +231,16 @@ export function NfcClinicalRecordPage() {
                     <span className="font-semibold text-slate-900">{item.vaccineCode} · Dose {item.doseNumber}</span>
                     <time className="shrink-0 text-slate-500">{new Date(item.administeredAt).toLocaleDateString()}</time>
                   </div>
+                  {item.certificateMetadata ? (
+                    <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
+                      <MapPin className="h-3.5 w-3.5" />
+                      {item.certificateMetadata.facilityName} · {item.certificateMetadata.lga}
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-xs font-semibold text-amber-700">
+                      Historical certificate details incomplete. Amend this dose from Clinical operations.
+                    </p>
+                  )}
                   <button
                     type="button"
                     onClick={() => void viewCertificate(item)}
@@ -195,8 +265,16 @@ export function NfcClinicalRecordPage() {
           <section className="rounded-2xl border border-slate-200 bg-white p-5">
             <h2 className="text-lg font-bold">Allergies and alerts</h2>
             <div className="mt-3 space-y-3">
-              {timeline.allergies.filter(({ status }) => status === 'ACTIVE').map((item) => <div key={item.id} className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm"><strong>{item.substanceDisplay}</strong>{item.reaction && <p>{item.reaction}</p>}</div>)}
-              {timeline.alerts.filter(({ status }) => status === 'ACTIVE').map((item) => <div key={item.id} className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm"><strong>{item.category}</strong><p>{item.summary}</p></div>)}
+              {timeline.allergies.filter(({ status }) => status === 'ACTIVE').map((item) => (
+                <div key={item.id} className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm">
+                  <strong>{item.substanceDisplay}</strong>{item.reaction && <p>{item.reaction}</p>}
+                </div>
+              ))}
+              {timeline.alerts.filter(({ status }) => status === 'ACTIVE').map((item) => (
+                <div key={item.id} className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm">
+                  <strong>{item.category}</strong><p>{item.summary}</p>
+                </div>
+              ))}
               {!timeline.allergies.length && !timeline.alerts.length && <p className="text-sm text-slate-500">No active allergies or alerts.</p>}
             </div>
           </section>
@@ -211,20 +289,11 @@ export function NfcClinicalRecordPage() {
                   <h2 className="text-lg font-bold">Vaccination certificate</h2>
                   <p className="mt-1 text-sm text-slate-600">{certificatePreview.label}</p>
                 </div>
-                <button
-                  type="button"
-                  aria-label="Close certificate preview"
-                  onClick={closeCertificatePreview}
-                  className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50"
-                >
+                <button type="button" aria-label="Close certificate preview" onClick={closeCertificatePreview} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50">
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              <img
-                src={certificatePreview.url}
-                alt={`Vaccination certificate for ${certificatePreview.label}`}
-                className="mx-auto mt-4 max-h-[70vh] w-auto rounded-xl border border-slate-200 shadow-sm"
-              />
+              <img src={certificatePreview.url} alt={`Vaccination certificate for ${certificatePreview.label}`} className="mx-auto mt-4 max-h-[70vh] w-auto rounded-xl border border-slate-200 shadow-sm" />
               <div className={`mt-4 rounded-xl border p-4 ${
                 certificatePreview.evidence.status === 'CONFIRMED'
                   ? 'border-emerald-300 bg-emerald-50 text-emerald-950'
@@ -244,51 +313,36 @@ export function NfcClinicalRecordPage() {
                           ? 'Algorand verification pending'
                           : certificatePreview.evidence.status === 'UNCONFIRMED'
                             ? 'Algorand transaction awaiting confirmation'
-                          : certificatePreview.evidence.status === 'DISABLED'
-                            ? 'Algorand verification is not configured'
-                            : certificatePreview.evidence.status === 'MISMATCH'
-                              ? 'Algorand proof mismatch'
-                              : 'Algorand verification is temporarily unavailable'}
+                            : certificatePreview.evidence.status === 'DISABLED'
+                              ? 'Algorand verification is not configured'
+                              : certificatePreview.evidence.status === 'MISMATCH'
+                                ? 'Algorand proof mismatch'
+                                : 'Algorand verification is temporarily unavailable'}
                     </p>
                     <p className="mt-1 text-xs leading-5 opacity-80">
-                      Only a cryptographic fingerprint is anchored. No child identity or medical details are written to Algorand.
+                      {evidencePrivacyMessage(certificatePreview.evidence.status)}
                     </p>
                     {certificatePreview.evidence.txId && (
-                      <p className="mt-2 break-all font-mono text-xs">
+                      <p className="mt-2 break-all text-xs opacity-75">
                         Transaction: {certificatePreview.evidence.txId}
                       </p>
                     )}
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
                     {certificatePreview.evidence.explorerUrl && (
-                      <a
-                        href={certificatePreview.evidence.explorerUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 rounded-lg border border-current/20 bg-white/70 px-3 py-2 text-sm font-bold"
-                      >
+                      <a href={certificatePreview.evidence.explorerUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-current/20 bg-white/70 px-3 py-2 text-sm font-bold">
                         View on explorer <ExternalLink className="h-4 w-4" />
                       </a>
                     )}
                     {certificatePreview.evidence.status !== 'DISABLED' && (
-                      <button
-                        type="button"
-                        onClick={() => void refreshCertificateEvidence()}
-                        disabled={certificateEvidenceBusy}
-                        className="inline-flex items-center gap-2 rounded-lg border border-current/20 bg-white/70 px-3 py-2 text-sm font-bold disabled:opacity-60"
-                      >
-                        <RefreshCw className={`h-4 w-4 ${certificateEvidenceBusy ? 'animate-spin' : ''}`} />
-                        Refresh proof
+                      <button type="button" onClick={() => void refreshCertificateEvidence()} disabled={certificateEvidenceBusy} className="inline-flex items-center gap-2 rounded-lg border border-current/20 bg-white/70 px-3 py-2 text-sm font-bold disabled:opacity-60">
+                        <RefreshCw className={`h-4 w-4 ${certificateEvidenceBusy ? 'animate-spin' : ''}`} /> Refresh proof
                       </button>
                     )}
                   </div>
                 </div>
               </div>
-              <a
-                href={certificatePreview.url}
-                download={certificatePreview.filename}
-                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 font-semibold text-white hover:bg-emerald-800"
-              >
+              <a href={certificatePreview.url} download={certificatePreview.filename} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 font-semibold text-white hover:bg-emerald-800">
                 <Download className="h-5 w-5" /> Download PNG
               </a>
             </section>
@@ -300,42 +354,186 @@ export function NfcClinicalRecordPage() {
 }
 
 export function NfcVaccinationPage() {
-  const { organizationId } = useContext(UserContext);
+  const { organizationId, user } = useContext(UserContext);
   const { childId = '' } = useParams();
-  const [form, setForm] = useState({ vaccineCode: '', doseNumber: '1', lotNumber: '', route: '', site: '', notes: '' });
+  const [facilities, setFacilities] = useState<MedfinetFacility[]>([]);
+  const [form, setForm] = useState({
+    vaccineCode: '',
+    doseNumber: '1',
+    administeredAt: localDateInputValue(),
+    lotNumber: '',
+    route: 'IM',
+    site: '',
+    notes: '',
+    facilitySelection: '',
+    facilityName: '',
+    state: '',
+    lga: '',
+    ward: '',
+    vaccinatorMode: 'SELF' as 'SELF' | 'OTHER',
+    vaccinatorName: '',
+  });
+  const [sourceOperationId, setSourceOperationId] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    let isCurrent = true;
+    setFacilities([]);
+    setError('');
+    setForm((current) => ({
+      ...current,
+      facilitySelection: '',
+      facilityName: '',
+      state: '',
+      lga: '',
+      ward: '',
+    }));
+
+    if (!organizationId) {
+      return () => {
+        isCurrent = false;
+      };
+    }
+
+    medfinetFacilityApi.list(organizationId)
+      .then((rows) => {
+        if (!isCurrent) return;
+        setFacilities(rows);
+        const first = rows[0];
+        if (!first) {
+          setForm((current) => ({
+            ...current,
+            facilitySelection: MANUAL_FACILITY,
+          }));
+          return;
+        }
+        setForm((current) => ({
+          ...current,
+          facilitySelection: first.id,
+          facilityName: first.name,
+          state: first.state || '',
+          lga: first.lga || '',
+          ward: first.ward || '',
+        }));
+      })
+      .catch((caught: unknown) => {
+        if (!isCurrent) return;
+        setError(caught instanceof Error ? caught.message : 'Could not load facilities');
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [organizationId]);
+
   async function submit(event: FormEvent) {
     event.preventDefault();
-    setBusy(true); setError(''); setSaved(false);
+    setBusy(true);
+    setError('');
+    setSaved(false);
     try {
       if (!organizationId) throw new Error('Select an organization first.');
       await medfinetClinicalApi.recordImmunization(organizationId, childId, {
         vaccineCode: form.vaccineCode.trim(),
         doseNumber: Number(form.doseNumber),
-        administeredAt: new Date().toISOString(),
+        administeredAt: new Date(`${form.administeredAt}T12:00:00Z`).toISOString(),
         lotNumber: form.lotNumber.trim() || undefined,
         route: form.route.trim() || undefined,
         site: form.site.trim() || undefined,
         notes: form.notes.trim() || undefined,
-        sourceOperationId: crypto.randomUUID(),
+        sourceOperationId,
+        ...(form.facilitySelection !== MANUAL_FACILITY
+          ? {
+              facilityId: form.facilitySelection,
+              facilityName: form.facilityName.trim(),
+            }
+          : { facilityName: form.facilityName.trim() }),
+        state: form.state.trim(),
+        lga: form.lga.trim(),
+        ward: form.ward.trim(),
+        vaccinatorMode: form.vaccinatorMode,
+        ...(form.vaccinatorMode === 'OTHER'
+          ? { vaccinatorName: form.vaccinatorName.trim() }
+          : {}),
       });
       setSaved(true);
-    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Vaccination could not be recorded'); }
-    finally { setBusy(false); }
+      setSourceOperationId(crypto.randomUUID());
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Vaccination could not be recorded');
+    } finally {
+      setBusy(false);
+    }
   }
+
   return (
     <WorkflowShell title="Record vaccination">
-      <form onSubmit={submit} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+      <form onSubmit={submit} className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
         <div className="grid gap-4 sm:grid-cols-2">
-          {Object.entries(form).map(([name, value]) => (
-            <label key={name} className={name === 'notes' ? 'sm:col-span-2' : ''}><span className="mb-1.5 block text-sm font-semibold capitalize text-slate-700">{name.replace(/([A-Z])/g, ' $1')}</span><input required={name === 'vaccineCode' || name === 'doseNumber'} type={name === 'doseNumber' ? 'number' : 'text'} min={name === 'doseNumber' ? 1 : undefined} value={value} onChange={(event) => setForm((current) => ({ ...current, [name]: event.target.value }))} className="w-full rounded-xl border border-slate-300 px-3 py-2.5" /></label>
-          ))}
+          <label className="text-sm font-semibold">Vaccine code<input required className={fieldClass} value={form.vaccineCode} onChange={(event) => setForm((current) => ({ ...current, vaccineCode: event.target.value }))} /></label>
+          <label className="text-sm font-semibold">Dose number<input required type="number" min="1" className={fieldClass} value={form.doseNumber} onChange={(event) => setForm((current) => ({ ...current, doseNumber: event.target.value }))} /></label>
+          <label className="text-sm font-semibold">Administered date<input required type="date" max={localDateInputValue()} className={fieldClass} value={form.administeredAt} onChange={(event) => setForm((current) => ({ ...current, administeredAt: event.target.value }))} /></label>
+          <label className="text-sm font-semibold">Lot number<input className={fieldClass} value={form.lotNumber} onChange={(event) => setForm((current) => ({ ...current, lotNumber: event.target.value }))} /></label>
+          <label className="text-sm font-semibold">Route<input className={fieldClass} value={form.route} onChange={(event) => setForm((current) => ({ ...current, route: event.target.value }))} /></label>
+          <label className="text-sm font-semibold">Injection site<input className={fieldClass} value={form.site} onChange={(event) => setForm((current) => ({ ...current, site: event.target.value }))} /></label>
         </div>
-        {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
-        {saved && <p className="flex items-center gap-2 text-sm font-semibold text-emerald-700"><CheckCircle2 size={18} /> Vaccination recorded and audited.</p>}
-        <button disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3 font-semibold text-white disabled:opacity-50">{busy ? <Loader2 className="animate-spin" /> : <Syringe size={19} />} Save vaccination</button>
+        <label className="block text-sm font-semibold">Notes<textarea className={fieldClass} value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} /></label>
+
+        <section className="space-y-4 rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
+          <div>
+            <h2 className="font-bold">Certificate details</h2>
+            <p className="mt-1 text-xs leading-5 text-slate-600">Confirm where the vaccination happened and who actually administered it. These values are snapshotted for the certificate.</p>
+          </div>
+          <label className="block text-sm font-semibold">
+            Health facility
+            <select
+              required
+              className={fieldClass}
+              value={form.facilitySelection}
+              onChange={(event) => {
+                const facilitySelection = event.target.value;
+                const facility = facilities.find((row) => row.id === facilitySelection);
+                setForm((current) => ({
+                  ...current,
+                  facilitySelection,
+                  facilityName: facilitySelection === MANUAL_FACILITY ? '' : facility?.name || '',
+                  state: facilitySelection === MANUAL_FACILITY ? '' : facility?.state || '',
+                  lga: facilitySelection === MANUAL_FACILITY ? '' : facility?.lga || '',
+                  ward: facilitySelection === MANUAL_FACILITY ? '' : facility?.ward || '',
+                }));
+              }}
+            >
+              <option value="">Select facility</option>
+              {facilities.map((facility) => <option key={facility.id} value={facility.id}>{facility.name}</option>)}
+              <option value={MANUAL_FACILITY}>Outreach / external location</option>
+            </select>
+          </label>
+          {form.facilitySelection === MANUAL_FACILITY && (
+            <label className="block text-sm font-semibold">Facility / vaccination site name<input required className={fieldClass} value={form.facilityName} onChange={(event) => setForm((current) => ({ ...current, facilityName: event.target.value }))} /></label>
+          )}
+          <div className="grid gap-4 sm:grid-cols-3">
+            <label className="text-sm font-semibold">State<input required className={fieldClass} value={form.state} onChange={(event) => setForm((current) => ({ ...current, state: event.target.value }))} /></label>
+            <label className="text-sm font-semibold">LGA<input required className={fieldClass} value={form.lga} onChange={(event) => setForm((current) => ({ ...current, lga: event.target.value }))} /></label>
+            <label className="text-sm font-semibold">Ward<input required className={fieldClass} value={form.ward} onChange={(event) => setForm((current) => ({ ...current, ward: event.target.value }))} /></label>
+          </div>
+          <label className="block text-sm font-semibold">
+            Vaccinator
+            <select className={fieldClass} value={form.vaccinatorMode} onChange={(event) => setForm((current) => ({ ...current, vaccinatorMode: event.target.value as 'SELF' | 'OTHER', vaccinatorName: event.target.value === 'SELF' ? '' : current.vaccinatorName }))}>
+              <option value="SELF">Me — {user?.name || 'current account'}</option>
+              <option value="OTHER">Another / external vaccinator</option>
+            </select>
+          </label>
+          {form.vaccinatorMode === 'OTHER' && (
+            <label className="block text-sm font-semibold">Vaccinator name<input required className={fieldClass} value={form.vaccinatorName} onChange={(event) => setForm((current) => ({ ...current, vaccinatorName: event.target.value }))} /></label>
+          )}
+        </section>
+
+        {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
+        {saved && <p className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm font-semibold text-emerald-700"><CheckCircle2 size={18} /> Vaccination recorded with certificate details and audit evidence.</p>}
+        <button disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3 font-semibold text-white disabled:opacity-50">
+          {busy ? <Loader2 className="animate-spin" /> : <Syringe size={19} />} Save vaccination
+        </button>
       </form>
     </WorkflowShell>
   );
@@ -349,19 +547,52 @@ export function NfcEmergencyPage() {
   const [profile, setProfile] = useState<EmergencyProfile | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
   async function activate(event: FormEvent) {
-    event.preventDefault(); setBusy(true); setError('');
+    event.preventDefault();
+    setBusy(true);
+    setError('');
     try {
       if (!organizationId) throw new Error('Select an organization first.');
-      const access = await medfinetClinicalApi.activateEmergencyAccess(organizationId, childId, { reasonCode, justification, durationMinutes: 15 });
-      setProfile(await medfinetClinicalApi.getEmergencyProfile(organizationId, childId, access.id));
-    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Emergency access failed'); }
-    finally { setBusy(false); }
+      const access = await medfinetClinicalApi.activateEmergencyAccess(
+        organizationId,
+        childId,
+        { reasonCode, justification, durationMinutes: 15 },
+      );
+      setProfile(await medfinetClinicalApi.getEmergencyProfile(
+        organizationId,
+        childId,
+        access.id,
+      ));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Emergency access failed');
+    } finally {
+      setBusy(false);
+    }
   }
+
   return (
     <WorkflowShell title="Emergency access">
-      {!profile && <form onSubmit={activate} className="space-y-4 rounded-2xl border border-rose-200 bg-white p-5 sm:p-6"><div className="flex gap-3 rounded-xl bg-rose-50 p-4 text-sm text-rose-900"><ShieldAlert className="shrink-0" /><p>This action requires recent step-up authentication, is time-limited, notifies the caregiver and is reviewed by administrators.</p></div><label className="block"><span className="mb-1 block text-sm font-semibold">Reason code</span><select value={reasonCode} onChange={(event) => setReasonCode(event.target.value)} className="w-full rounded-xl border border-slate-300 px-3 py-2.5"><option value="IMMEDIATE_CARE">Immediate care</option><option value="UNCONSCIOUS_PATIENT">Unconscious patient</option><option value="LIFE_THREATENING">Life threatening</option></select></label><label className="block"><span className="mb-1 block text-sm font-semibold">Clinical justification</span><textarea required minLength={10} value={justification} onChange={(event) => setJustification(event.target.value)} className="min-h-28 w-full rounded-xl border border-slate-300 px-3 py-2.5" /></label>{error && <p role="alert" className="text-sm text-rose-700">{error}</p>}<button disabled={busy} className="w-full rounded-xl bg-rose-700 px-4 py-3 font-semibold text-white disabled:opacity-50">Activate 15-minute emergency access</button></form>}
-      {profile && <section className="space-y-4 rounded-2xl border border-rose-300 bg-white p-5"><div className="flex items-center gap-2 text-rose-700"><AlertTriangle /><strong>Emergency session expires {new Date(profile.access.expiresAt).toLocaleTimeString()}</strong></div><h2 className="text-2xl font-bold">{profile.profile.firstName} {profile.profile.lastName}</h2><div><h3 className="font-bold">Critical allergies</h3>{profile.profile.allergies.map((item) => <p key={item.substanceDisplay} className="mt-2 rounded-xl bg-amber-50 p-3">{item.substanceDisplay}{item.reaction ? ` · ${item.reaction}` : ''}</p>)}</div><div><h3 className="font-bold">Emergency alerts</h3>{profile.profile.clinicalAlerts.map((item) => <p key={`${item.category}-${item.summary}`} className="mt-2 rounded-xl bg-rose-50 p-3">{item.summary}</p>)}</div></section>}
+      {!profile && (
+        <form onSubmit={activate} className="space-y-4 rounded-2xl border border-rose-200 bg-white p-5 sm:p-6">
+          <div className="flex gap-3 rounded-xl bg-rose-50 p-4 text-sm text-rose-900">
+            <ShieldAlert className="shrink-0" />
+            <p>This action requires recent step-up authentication, is time-limited, notifies the caregiver and is reviewed by administrators.</p>
+          </div>
+          <label className="block"><span className="mb-1 block text-sm font-semibold">Reason code</span><select value={reasonCode} onChange={(event) => setReasonCode(event.target.value)} className={fieldClass}><option value="IMMEDIATE_CARE">Immediate care</option><option value="UNCONSCIOUS_PATIENT">Unconscious patient</option><option value="LIFE_THREATENING">Life threatening</option></select></label>
+          <label className="block"><span className="mb-1 block text-sm font-semibold">Clinical justification</span><textarea required minLength={10} value={justification} onChange={(event) => setJustification(event.target.value)} className="min-h-28 w-full rounded-xl border border-slate-300 px-3 py-2.5" /></label>
+          {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
+          <button disabled={busy} className="w-full rounded-xl bg-rose-700 px-4 py-3 font-semibold text-white disabled:opacity-50">Activate 15-minute emergency access</button>
+        </form>
+      )}
+      {profile && (
+        <section className="space-y-4 rounded-2xl border border-rose-300 bg-white p-5">
+          <div className="flex items-center gap-2 text-rose-700"><AlertTriangle /><strong>Emergency session expires {new Date(profile.access.expiresAt).toLocaleTimeString()}</strong></div>
+          <h2 className="text-2xl font-bold">{profile.profile.firstName} {profile.profile.lastName}</h2>
+          <div><h3 className="font-bold">Critical allergies</h3>{profile.profile.allergies.map((item) => <p key={item.substanceDisplay} className="mt-2 rounded-xl bg-amber-50 p-3">{item.substanceDisplay}{item.reaction ? ` · ${item.reaction}` : ''}</p>)}</div>
+          <div><h3 className="font-bold">Emergency alerts</h3>{profile.profile.clinicalAlerts.map((item) => <p key={`${item.category}-${item.summary}`} className="mt-2 rounded-xl bg-rose-50 p-3">{item.summary}</p>)}</div>
+        </section>
+      )}
     </WorkflowShell>
   );
 }
