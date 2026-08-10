@@ -58,6 +58,23 @@ function number(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
+function normalizeSignals(
+  source: Record<string, unknown> | null,
+): Record<string, string | number | boolean> | undefined {
+  if (!source) return undefined;
+  const entries: Array<[string, string | number | boolean]> = [];
+  for (const [name, value] of Object.entries(source)) {
+    if (
+      typeof value === "string" ||
+      typeof value === "number" ||
+      typeof value === "boolean"
+    ) {
+      entries.push([name, value]);
+    }
+  }
+  return entries.length ? Object.fromEntries(entries) : undefined;
+}
+
 function normalizeItem(value: unknown): RewardAnomalyItem | null {
   if (!isRecord(value)) return null;
 
@@ -72,13 +89,6 @@ function normalizeItem(value: unknown): RewardAnomalyItem | null {
     : isRecord(value.components)
       ? value.components
       : null;
-  const signals = signalSource
-    ? Object.fromEntries(
-        Object.entries(signalSource).filter(([, item]) =>
-          ["string", "number", "boolean"].includes(typeof item),
-        ),
-      )
-    : undefined;
 
   return {
     id: text(value.id),
@@ -97,7 +107,7 @@ function normalizeItem(value: unknown): RewardAnomalyItem | null {
     redeemedAt: text(value.redeemedAt),
     createdAt: text(value.createdAt),
     reasons,
-    signals,
+    signals: normalizeSignals(signalSource),
   };
 }
 
