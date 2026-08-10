@@ -2,12 +2,15 @@ import { useContext, useState } from "react";
 import { Calendar, ChevronLeft, Download, Loader2, Shield } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import CertificateBlockchainEvidence, {
-  type ExtendedVaccinationCertificateEvidence,
+  unavailableEvidence,
 } from "../../components/clinical/CertificateBlockchainEvidence";
 import { PageFeedback } from "../../components/common/PageFeedback";
 import UserContext from "../../contexts/UserContext";
 import { useApi } from "../../hooks/useMedfinetApi";
-import { medfinetClinicalApi } from "../../services/medfinetClinicalApi";
+import {
+  medfinetClinicalApi,
+  type VaccinationCertificateEvidence,
+} from "../../services/medfinetClinicalApi";
 import { medfinetIdentityApi } from "../../services/medfinetIdentityApi";
 
 export default function VaccinationHistory() {
@@ -17,7 +20,7 @@ export default function VaccinationHistory() {
   const [certificateError, setCertificateError] = useState<string | null>(null);
   const [evidenceBusyId, setEvidenceBusyId] = useState<string | null>(null);
   const [evidenceByImmunization, setEvidenceByImmunization] = useState<
-    Record<string, ExtendedVaccinationCertificateEvidence>
+    Record<string, VaccinationCertificateEvidence>
   >({});
   const validId = Boolean(id && id !== "all");
   const childRequest = useApi(
@@ -45,11 +48,11 @@ export default function VaccinationHistory() {
     setEvidenceBusyId(immunizationId);
     setCertificateError(null);
     try {
-      const evidence = (await medfinetClinicalApi.getImmunizationCertificateEvidence(
+      const evidence = await medfinetClinicalApi.getImmunizationCertificateEvidence(
         organizationId,
         id,
         immunizationId,
-      )) as ExtendedVaccinationCertificateEvidence;
+      );
       setEvidenceByImmunization((current) => ({
         ...current,
         [immunizationId]: evidence,
@@ -61,7 +64,9 @@ export default function VaccinationHistory() {
           : "Unable to refresh certificate blockchain evidence.",
       );
     } finally {
-      setEvidenceBusyId(null);
+      setEvidenceBusyId((current) =>
+        current === immunizationId ? null : current,
+      );
     }
   };
 
@@ -85,13 +90,13 @@ export default function VaccinationHistory() {
       if (certificateResult.status === "rejected") {
         throw certificateResult.reason;
       }
-      if (evidenceResult.status === "fulfilled") {
-        setEvidenceByImmunization((current) => ({
-          ...current,
-          [immunizationId]:
-            evidenceResult.value as ExtendedVaccinationCertificateEvidence,
-        }));
-      }
+      setEvidenceByImmunization((current) => ({
+        ...current,
+        [immunizationId]:
+          evidenceResult.status === "fulfilled"
+            ? evidenceResult.value
+            : unavailableEvidence(immunizationId),
+      }));
       const { blob, filename } = certificateResult.value;
       const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
