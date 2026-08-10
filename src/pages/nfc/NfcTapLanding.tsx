@@ -117,6 +117,7 @@ export default function NfcTapLanding() {
     new URLSearchParams(location.search).get("access") === VACCINE_ACCESS_QUERY;
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
       mountedRef.current = false;
       accessRequestRef.current += 1;
