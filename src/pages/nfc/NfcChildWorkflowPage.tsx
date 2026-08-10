@@ -36,6 +36,13 @@ type EmergencyProfile = Awaited<ReturnType<typeof medfinetClinicalApi.getEmergen
 const MANUAL_FACILITY = '__MANUAL__';
 const fieldClass = 'mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5';
 
+function localDateInputValue() {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
+    .toISOString()
+    .slice(0, 10);
+}
+
 function unavailableEvidence(recordId: string): VaccinationCertificateEvidence {
   return {
     recordId,
@@ -334,7 +341,7 @@ export function NfcVaccinationPage() {
   const [form, setForm] = useState({
     vaccineCode: '',
     doseNumber: '1',
-    administeredAt: new Date().toISOString().slice(0, 10),
+    administeredAt: localDateInputValue(),
     lotNumber: '',
     route: 'IM',
     site: '',
@@ -347,32 +354,59 @@ export function NfcVaccinationPage() {
     vaccinatorMode: 'SELF' as 'SELF' | 'OTHER',
     vaccinatorName: '',
   });
+  const [sourceOperationId, setSourceOperationId] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    if (!organizationId) return;
+    let isCurrent = true;
+    setFacilities([]);
+    setError('');
+    setForm((current) => ({
+      ...current,
+      facilitySelection: '',
+      facilityName: '',
+      state: '',
+      lga: '',
+      ward: '',
+    }));
+
+    if (!organizationId) {
+      return () => {
+        isCurrent = false;
+      };
+    }
+
     medfinetFacilityApi.list(organizationId)
       .then((rows) => {
+        if (!isCurrent) return;
         setFacilities(rows);
         const first = rows[0];
         if (!first) {
-          setForm((current) => ({ ...current, facilitySelection: MANUAL_FACILITY }));
+          setForm((current) => ({
+            ...current,
+            facilitySelection: MANUAL_FACILITY,
+          }));
           return;
         }
         setForm((current) => ({
           ...current,
           facilitySelection: first.id,
           facilityName: first.name,
-          state: first.state || first.administrativeArea || '',
+          state: first.state || '',
           lga: first.lga || '',
           ward: first.ward || '',
         }));
       })
-      .catch((caught: unknown) => setError(
-        caught instanceof Error ? caught.message : 'Could not load facilities',
-      ));
+      .catch((caught: unknown) => {
+        if (!isCurrent) return;
+        setError(caught instanceof Error ? caught.message : 'Could not load facilities');
+      });
+
+    return () => {
+      isCurrent = false;
+    };
   }, [organizationId]);
 
   async function submit(event: FormEvent) {
@@ -390,9 +424,12 @@ export function NfcVaccinationPage() {
         route: form.route.trim() || undefined,
         site: form.site.trim() || undefined,
         notes: form.notes.trim() || undefined,
-        sourceOperationId: crypto.randomUUID(),
+        sourceOperationId,
         ...(form.facilitySelection !== MANUAL_FACILITY
-          ? { facilityId: form.facilitySelection }
+          ? {
+              facilityId: form.facilitySelection,
+              facilityName: form.facilityName.trim(),
+            }
           : { facilityName: form.facilityName.trim() }),
         state: form.state.trim(),
         lga: form.lga.trim(),
@@ -403,6 +440,7 @@ export function NfcVaccinationPage() {
           : {}),
       });
       setSaved(true);
+      setSourceOperationId(crypto.randomUUID());
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Vaccination could not be recorded');
     } finally {
@@ -416,7 +454,7 @@ export function NfcVaccinationPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="text-sm font-semibold">Vaccine code<input required className={fieldClass} value={form.vaccineCode} onChange={(event) => setForm((current) => ({ ...current, vaccineCode: event.target.value }))} /></label>
           <label className="text-sm font-semibold">Dose number<input required type="number" min="1" className={fieldClass} value={form.doseNumber} onChange={(event) => setForm((current) => ({ ...current, doseNumber: event.target.value }))} /></label>
-          <label className="text-sm font-semibold">Administered date<input required type="date" max={new Date().toISOString().slice(0, 10)} className={fieldClass} value={form.administeredAt} onChange={(event) => setForm((current) => ({ ...current, administeredAt: event.target.value }))} /></label>
+          <label className="text-sm font-semibold">Administered date<input required type="date" max={localDateInputValue()} className={fieldClass} value={form.administeredAt} onChange={(event) => setForm((current) => ({ ...current, administeredAt: event.target.value }))} /></label>
           <label className="text-sm font-semibold">Lot number<input className={fieldClass} value={form.lotNumber} onChange={(event) => setForm((current) => ({ ...current, lotNumber: event.target.value }))} /></label>
           <label className="text-sm font-semibold">Route<input className={fieldClass} value={form.route} onChange={(event) => setForm((current) => ({ ...current, route: event.target.value }))} /></label>
           <label className="text-sm font-semibold">Injection site<input className={fieldClass} value={form.site} onChange={(event) => setForm((current) => ({ ...current, site: event.target.value }))} /></label>
@@ -441,7 +479,7 @@ export function NfcVaccinationPage() {
                   ...current,
                   facilitySelection,
                   facilityName: facilitySelection === MANUAL_FACILITY ? '' : facility?.name || '',
-                  state: facilitySelection === MANUAL_FACILITY ? '' : facility?.state || facility?.administrativeArea || '',
+                  state: facilitySelection === MANUAL_FACILITY ? '' : facility?.state || '',
                   lga: facilitySelection === MANUAL_FACILITY ? '' : facility?.lga || '',
                   ward: facilitySelection === MANUAL_FACILITY ? '' : facility?.ward || '',
                 }));
