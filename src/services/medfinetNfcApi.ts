@@ -75,9 +75,11 @@ export type NfcImmunizationRecord = {
   status: string;
 };
 
+export type NfcAccessIntent = 'IMMUNIZATION_CERTIFICATES';
+
 export type NfcScanResult = {
   organizationId: string;
-  accessIntent: 'CLINICAL_SUMMARY' | 'IMMUNIZATION_CERTIFICATES';
+  accessIntent: 'CLINICAL_SUMMARY' | NfcAccessIntent;
   assurance: string;
   child: {
     id: string;
@@ -219,20 +221,31 @@ export const medfinetNfcApi = {
     );
   },
 
-  createChallenge(publicId: string, device: string | NfcChallengeDevice) {
+  createChallenge(
+    publicId: string,
+    device: string | NfcChallengeDevice,
+    accessIntent?: NfcAccessIntent,
+  ) {
     return request<{
       challengeToken: string;
       expiresAt: string;
       deviceId: string;
       organizationId: string;
+      accessIntent: 'CLINICAL_SUMMARY' | NfcAccessIntent;
     }>(
       '/nfc/scans/challenges',
       {
         method: 'POST',
-        body: typeof device === 'string'
-          ? { publicId, deviceId: device }
-          : { publicId, device },
-        purpose: 'nfc-card-resolution',
+        body: {
+          publicId,
+          ...(typeof device === 'string'
+            ? { deviceId: device }
+            : { device }),
+          ...(accessIntent ? { accessIntent } : {}),
+        },
+        purpose: accessIntent === 'IMMUNIZATION_CERTIFICATES'
+          ? 'nfc-immunization-certificate-access'
+          : 'nfc-card-resolution',
       }
     );
   },
@@ -244,7 +257,7 @@ export const medfinetNfcApi = {
     uc: string;
     originalitySignature?: string;
     scanMode?: 'PWA_NDEF' | 'TAGWRITER_NDEF' | 'NATIVE_RAW';
-    accessIntent?: 'IMMUNIZATION_CERTIFICATES';
+    accessIntent?: NfcAccessIntent;
     deviceSignature: string;
   }) {
     return request<NfcScanResult>('/nfc/scans/resolve', {
