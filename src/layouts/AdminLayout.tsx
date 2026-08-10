@@ -45,7 +45,7 @@ export default function AdminLayout() {
         items: [
           { label: "Operational overview", path: "/admin/dashboard", icon: Gauge, exact: true },
           { label: "Clinical records", path: "/admin/clinical", icon: FirstAidKit },
-          { label: "Vaccines & certificates", path: "/profiles", icon: Syringe },
+          { label: "Vaccines & certificates", path: "/admin/vaccines", icon: Syringe },
           { label: "Vaccine schedules", path: "/admin/schedules", icon: Syringe },
           { label: "Climate response", path: "/admin/climate", icon: CloudSun },
           { label: "USSD operations", path: "/admin/ussd", icon: Broadcast },
