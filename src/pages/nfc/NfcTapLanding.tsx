@@ -30,6 +30,8 @@ type TapCard = {
   scanMode: "PWA_NDEF" | "TAGWRITER_NDEF";
 };
 
+type StoredTapCard = TapCard & { savedAt: number };
+
 type State =
   | { kind: "loading" }
   | {
@@ -43,6 +45,67 @@ type State =
   | { kind: "resolved"; result: NfcScanResult }
   | { kind: "error"; message: string };
 
+const TAP_CACHE_TTL_MS = 15 * 60 * 1000;
+
+function tapCacheKey(publicId: string) {
+  return `medfinet.nfc.pending-tap.${publicId}`;
+}
+
+function readTapCard(publicId: string): TapCard | null {
+  const fragment = new URLSearchParams(
+    window.location.hash.replace(/^#/, ""),
+  );
+  const token = fragment.get("t") || "";
+  const uc = fragment.get("uc") || "";
+
+  if (token) {
+    const card: TapCard = {
+      publicId,
+      cardToken: token,
+      uc,
+      scanMode: uc ? "PWA_NDEF" : "TAGWRITER_NDEF",
+    };
+    try {
+      sessionStorage.setItem(
+        tapCacheKey(publicId),
+        JSON.stringify({ ...card, savedAt: Date.now() } satisfies StoredTapCard),
+      );
+    } catch {
+      // The current tap can still continue when browser session storage is blocked.
+    }
+
+    // The NFC credential stays in browser memory instead of browser history.
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${window.location.search}`,
+    );
+    return card;
+  }
+
+  try {
+    const raw = sessionStorage.getItem(tapCacheKey(publicId));
+    if (!raw) return null;
+    const stored = JSON.parse(raw) as StoredTapCard;
+    if (
+      stored.publicId !== publicId ||
+      !stored.cardToken ||
+      Date.now() - stored.savedAt > TAP_CACHE_TTL_MS
+    ) {
+      sessionStorage.removeItem(tapCacheKey(publicId));
+      return null;
+    }
+    return {
+      publicId: stored.publicId,
+      cardToken: stored.cardToken,
+      uc: stored.uc || "",
+      scanMode: stored.uc ? "PWA_NDEF" : "TAGWRITER_NDEF",
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default function NfcTapLanding() {
   const { publicId = "" } = useParams();
   const navigate = useNavigate();
@@ -51,24 +114,33 @@ export default function NfcTapLanding() {
   const [state, setState] = useState<State>({ kind: "loading" });
 
   useEffect(() => {
-    const fragment = new URLSearchParams(
-      window.location.hash.replace(/^#/, ""),
-    );
-    const uc = fragment.get("uc") || "";
-    const token = fragment.get("t") || "";
-    const currentCard: TapCard = {
-      publicId,
-      cardToken: token,
-      uc,
-      scanMode: uc ? "PWA_NDEF" : "TAGWRITER_NDEF",
-    };
+    let active = true;
+    let requestNumber = 0;
 
-    setCard(currentCard);
-    window.history.replaceState(null, "", window.location.pathname);
+    const recognizeCurrentTap = async () => {
+      const currentRequest = ++requestNumber;
+      const currentCard = readTapCard(publicId);
+      if (!currentCard) {
+        if (active) {
+          setCard(null);
+          setState({
+            kind: "error",
+            message:
+              "The secure card token was not received. Tap the NFC card again to continue.",
+          });
+        }
+        return;
+      }
 
-    medfinetNfcApi
-      .verifyPublicTap(publicId, uc, token)
-      .then((result) =>
+      setCard(currentCard);
+      setState({ kind: "loading" });
+      try {
+        const result = await medfinetNfcApi.verifyPublicTap(
+          publicId,
+          currentCard.uc,
+          currentCard.cardToken,
+        );
+        if (!active || currentRequest !== requestNumber) return;
         setState({
           kind: "verified",
           message: result.message,
@@ -77,15 +149,24 @@ export default function NfcTapLanding() {
           staticNdef:
             result.hardwareFamily === "NTAG_215_TAGWRITER_DEMO" ||
             result.assurance === "BASIC_STATIC_NDEF_DEMO",
-        }),
-      )
-      .catch((error: unknown) =>
+        });
+      } catch (error) {
+        if (!active || currentRequest !== requestNumber) return;
         setState({
           kind: "error",
           message:
             error instanceof Error ? error.message : "Card verification failed",
-        }),
-      );
+        });
+      }
+    };
+
+    void recognizeCurrentTap();
+    const onHashChange = () => void recognizeCurrentTap();
+    window.addEventListener("hashchange", onHashChange);
+    return () => {
+      active = false;
+      window.removeEventListener("hashchange", onHashChange);
+    };
   }, [publicId]);
 
   useEffect(() => {
@@ -105,8 +186,8 @@ export default function NfcTapLanding() {
     setState({ kind: "resolving" });
     void (async () => {
       try {
-        let deviceId =
-          localStorage.getItem("medfinet.nfc.device-record-id") || "";
+        const deviceStorageKey = `medfinet.nfc.device-record-id.${organizationId}`;
+        let deviceId = localStorage.getItem(deviceStorageKey) || "";
         if (!deviceId) {
           const registration = await medfinetNfcApi.registerDevice(
             organizationId,
@@ -119,6 +200,8 @@ export default function NfcTapLanding() {
             },
           );
           deviceId = registration.device.id;
+          localStorage.setItem(deviceStorageKey, deviceId);
+          // Keep the legacy key in sync for the existing scanner page.
           localStorage.setItem("medfinet.nfc.device-record-id", deviceId);
         }
 
@@ -154,6 +237,13 @@ export default function NfcTapLanding() {
     resolved?.clinicalSummary.clinicalAccess === "ALLOWED";
   const childBase = resolved
     ? `/health-worker/nfc/children/${resolved.child.id}`
+    : "";
+  const consentLabel = resolved
+    ? resolved.clinicalSummary.consent.status === "GRANTED"
+      ? "Granted"
+      : clinicalAllowed
+        ? "Test admin access"
+        : "Required"
     : "";
 
   return (
@@ -307,9 +397,7 @@ export default function NfcTapLanding() {
                   Consent
                 </p>
                 <p className="mt-1 text-xl font-bold text-white">
-                  {resolved.clinicalSummary.consent.status === "GRANTED"
-                    ? "Granted"
-                    : "Required"}
+                  {consentLabel}
                 </p>
               </div>
             </div>
@@ -349,10 +437,8 @@ export default function NfcTapLanding() {
             </div>
 
             <p className="text-xs leading-5 text-slate-400">
-              Standard static NFC links are permission checked and audited, but
-              the link itself can be copied and does not prove chip originality.
-              Use protected NTAG215 provisioning where chip-level anti-cloning
-              assurance is required.
+              NFC access is permission checked and audited. Protected NTAG215
+              provisioning adds chip-level anti-cloning checks where required.
             </p>
           </div>
         )}
