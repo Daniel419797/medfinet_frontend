@@ -15,6 +15,9 @@ import {
   Syringe,
 } from "lucide-react";
 import { PageFeedback } from "../../components/common/PageFeedback";
+import CertificateBlockchainEvidence, {
+  type ExtendedVaccinationCertificateEvidence,
+} from "../../components/clinical/CertificateBlockchainEvidence";
 import UserContext from "../../contexts/UserContext";
 import { medfinetClinicalApi } from "../../services/medfinetClinicalApi";
 import { medfinetIdentityApi } from "../../services/medfinetIdentityApi";
@@ -31,6 +34,7 @@ type CertificatePreview = {
   url: string;
   filename: string;
   label: string;
+  evidence: ExtendedVaccinationCertificateEvidence;
 };
 
 const secondaryButton =
@@ -40,6 +44,24 @@ const primaryButton =
 
 function certificateAvailable(vaccination: Immunization) {
   return ["ACTIVE", "AMENDED"].includes(vaccination.status);
+}
+
+function unavailableEvidence(recordId: string): ExtendedVaccinationCertificateEvidence {
+  return {
+    recordId,
+    fingerprint: "",
+    anchorId: "",
+    status: "UNAVAILABLE",
+    queued: false,
+    network: null,
+    txId: null,
+    blockHeight: null,
+    confirmedAt: null,
+    explorerUrl: null,
+    hashIntegrity: null,
+    noteIntegrity: null,
+    chainConfirmed: null,
+  };
 }
 
 export default function VaccineCertificates() {
@@ -52,6 +74,7 @@ export default function VaccineCertificates() {
   const [loadingTimeline, setLoadingTimeline] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewBusyId, setPreviewBusyId] = useState<string | null>(null);
+  const [evidenceBusy, setEvidenceBusy] = useState(false);
   const [preview, setPreview] = useState<CertificatePreview | null>(null);
   const selected = children.find((child) => child.id === selectedId) || null;
 
@@ -140,12 +163,26 @@ export default function VaccineCertificates() {
       setPreviewBusyId(vaccination.id);
       setError(null);
       try {
-        const { blob, filename } =
-          await medfinetClinicalApi.downloadImmunizationCertificate(
+        const [certificateResult, evidenceResult] = await Promise.allSettled([
+          medfinetClinicalApi.downloadImmunizationCertificate(
             organizationId,
             selectedId,
             vaccination.id,
-          );
+          ),
+          medfinetClinicalApi.getImmunizationCertificateEvidence(
+            organizationId,
+            selectedId,
+            vaccination.id,
+          ),
+        ]);
+        if (certificateResult.status === "rejected") {
+          throw certificateResult.reason;
+        }
+        const { blob, filename } = certificateResult.value;
+        const evidence =
+          evidenceResult.status === "fulfilled"
+            ? (evidenceResult.value as ExtendedVaccinationCertificateEvidence)
+            : unavailableEvidence(vaccination.id);
         const objectUrl = URL.createObjectURL(blob);
         setPreview((current) => {
           if (current?.url) URL.revokeObjectURL(current.url);
@@ -154,6 +191,7 @@ export default function VaccineCertificates() {
             url: objectUrl,
             filename: filename || "vaccination-certificate.png",
             label: `${vaccination.vaccineCode} dose ${vaccination.doseNumber}`,
+            evidence,
           };
         });
       } catch (reason) {
@@ -168,6 +206,33 @@ export default function VaccineCertificates() {
     },
     [organizationId, preview?.immunizationId, selectedId],
   );
+
+  const refreshEvidence = useCallback(async () => {
+    if (!organizationId || !selectedId || !preview) return;
+    const immunizationId = preview.immunizationId;
+    setEvidenceBusy(true);
+    setError(null);
+    try {
+      const evidence = (await medfinetClinicalApi.getImmunizationCertificateEvidence(
+        organizationId,
+        selectedId,
+        immunizationId,
+      )) as ExtendedVaccinationCertificateEvidence;
+      setPreview((current) =>
+        current?.immunizationId === immunizationId
+          ? { ...current, evidence }
+          : current,
+      );
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Unable to refresh blockchain evidence",
+      );
+    } finally {
+      setEvidenceBusy(false);
+    }
+  }, [organizationId, preview, selectedId]);
 
   useEffect(() => {
     if (loadingTimeline || preview || previewBusyId) return;
@@ -194,7 +259,7 @@ export default function VaccineCertificates() {
             Vaccines & certificates
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
-            Select a child and vaccine to view the generated vaccination certificate exactly as it will be downloaded.
+            Select a child and vaccine to view the generated certificate, download it, and verify its Algorand fingerprint anchor and certificate NFT.
           </p>
         </div>
         <button
@@ -385,7 +450,7 @@ export default function VaccineCertificates() {
                       </div>
 
                       {preview ? (
-                        <div className="mx-auto max-w-[720px]">
+                        <div className="mx-auto max-w-[720px] space-y-4">
                           <div className="overflow-hidden rounded-xl border border-emerald-300 bg-white shadow-lg">
                             <img
                               src={preview.url}
@@ -393,9 +458,14 @@ export default function VaccineCertificates() {
                               className="block h-auto w-full"
                             />
                           </div>
-                          <p className="mt-3 text-center text-xs text-slate-500">
+                          <p className="text-center text-xs text-slate-500">
                             {preview.label} · generated from the current Medfinet record
                           </p>
+                          <CertificateBlockchainEvidence
+                            evidence={preview.evidence}
+                            busy={evidenceBusy}
+                            onRefresh={() => void refreshEvidence()}
+                          />
                         </div>
                       ) : previewBusyId ? (
                         <div className="grid min-h-[520px] place-items-center rounded-xl border border-dashed border-emerald-300 bg-white/80">
