@@ -58,7 +58,7 @@ export default function AdminLayout() {
           { label: "Team and access", path: "/admin/users", icon: UserGear },
           { label: "Caregivers", path: "/admin/caregivers", icon: UsersThree },
           { label: "Identity integrity", path: "/admin/identity-integrity", icon: Fingerprint },
-          { label: "Child records", path: "/profiles", icon: Baby },
+          { label: "Child records", path: "/admin/clinical", icon: Baby },
         ],
       },
       {
