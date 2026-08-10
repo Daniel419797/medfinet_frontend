@@ -3,20 +3,57 @@ import {
   medfinetRequest as request,
 } from './medfinetApiClient';
 
+export type CertificateNftEvidence = {
+  status:
+    | 'DISABLED'
+    | 'PENDING'
+    | 'CONFIRMED'
+    | 'UNCONFIRMED'
+    | 'MISMATCH'
+    | 'UNAVAILABLE';
+  reason?: string | null;
+  queued: boolean;
+  assetId: string | null;
+  mintTxId: string | null;
+  blockHeight: string | null;
+  confirmedAt: string | null;
+  network: string | null;
+  networkId: string | null;
+  explorerUrl: string | null;
+  receiptIntegrity: boolean | null;
+  networkIntegrity: boolean | null;
+  transactionIntegrity: boolean | null;
+  assetIntegrity: boolean | null;
+  metadataIntegrity: boolean | null;
+  supplyIntegrity: boolean | null;
+  immutableIntegrity: boolean | null;
+  chainConfirmed: boolean | null;
+  verified: boolean;
+};
+
 export type VaccinationCertificateEvidence = {
   recordId: string;
   fingerprint: string;
+  fingerprintVersion?: number;
   anchorId: string;
   status: 'DISABLED' | 'PENDING' | 'CONFIRMED' | 'UNCONFIRMED' | 'MISMATCH' | 'UNAVAILABLE';
   queued: boolean;
   network: string | null;
+  networkId?: string | null;
   txId: string | null;
   blockHeight: string | null;
   confirmedAt: string | null;
   explorerUrl: string | null;
+  receiptIntegrity?: boolean | null;
+  networkIntegrity?: boolean | null;
   hashIntegrity: boolean | null;
+  txIdIntegrity?: boolean | null;
   noteIntegrity: boolean | null;
+  transactionIntegrity?: boolean | null;
+  transactionLocated?: boolean | null;
   chainConfirmed: boolean | null;
+  reason?: string | null;
+  nft?: CertificateNftEvidence;
 };
 
 export type ClinicalTimeline = {
