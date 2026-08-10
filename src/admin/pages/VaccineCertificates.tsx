@@ -16,10 +16,13 @@ import {
 } from "lucide-react";
 import { PageFeedback } from "../../components/common/PageFeedback";
 import CertificateBlockchainEvidence, {
-  type ExtendedVaccinationCertificateEvidence,
+  unavailableEvidence,
 } from "../../components/clinical/CertificateBlockchainEvidence";
 import UserContext from "../../contexts/UserContext";
-import { medfinetClinicalApi } from "../../services/medfinetClinicalApi";
+import {
+  medfinetClinicalApi,
+  type VaccinationCertificateEvidence,
+} from "../../services/medfinetClinicalApi";
 import { medfinetIdentityApi } from "../../services/medfinetIdentityApi";
 
 type Child = Awaited<
@@ -34,7 +37,7 @@ type CertificatePreview = {
   url: string;
   filename: string;
   label: string;
-  evidence: ExtendedVaccinationCertificateEvidence;
+  evidence: VaccinationCertificateEvidence;
 };
 
 const secondaryButton =
@@ -44,24 +47,6 @@ const primaryButton =
 
 function certificateAvailable(vaccination: Immunization) {
   return ["ACTIVE", "AMENDED"].includes(vaccination.status);
-}
-
-function unavailableEvidence(recordId: string): ExtendedVaccinationCertificateEvidence {
-  return {
-    recordId,
-    fingerprint: "",
-    anchorId: "",
-    status: "UNAVAILABLE",
-    queued: false,
-    network: null,
-    txId: null,
-    blockHeight: null,
-    confirmedAt: null,
-    explorerUrl: null,
-    hashIntegrity: null,
-    noteIntegrity: null,
-    chainConfirmed: null,
-  };
 }
 
 export default function VaccineCertificates() {
@@ -181,7 +166,7 @@ export default function VaccineCertificates() {
         const { blob, filename } = certificateResult.value;
         const evidence =
           evidenceResult.status === "fulfilled"
-            ? (evidenceResult.value as ExtendedVaccinationCertificateEvidence)
+            ? evidenceResult.value
             : unavailableEvidence(vaccination.id);
         const objectUrl = URL.createObjectURL(blob);
         setPreview((current) => {
@@ -213,11 +198,11 @@ export default function VaccineCertificates() {
     setEvidenceBusy(true);
     setError(null);
     try {
-      const evidence = (await medfinetClinicalApi.getImmunizationCertificateEvidence(
+      const evidence = await medfinetClinicalApi.getImmunizationCertificateEvidence(
         organizationId,
         selectedId,
         immunizationId,
-      )) as ExtendedVaccinationCertificateEvidence;
+      );
       setPreview((current) =>
         current?.immunizationId === immunizationId
           ? { ...current, evidence }
