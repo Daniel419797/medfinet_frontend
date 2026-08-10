@@ -1,21 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
-  Blocks,
   CheckCircle2,
   Download,
-  ExternalLink,
   Loader2,
-  RefreshCw,
   ShieldCheck,
   Syringe,
   X,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  medfinetClinicalApi,
-  type VaccinationCertificateEvidence,
-} from "../../services/medfinetClinicalApi";
+import CertificateBlockchainEvidence, {
+  type ExtendedVaccinationCertificateEvidence,
+} from "../../components/clinical/CertificateBlockchainEvidence";
+import { medfinetClinicalApi } from "../../services/medfinetClinicalApi";
 import type { NfcImmunizationRecord } from "../../services/medfinetNfcApi";
 import {
   clearNfcVaccineAccess,
@@ -27,10 +24,10 @@ type CertificatePreview = {
   filename: string;
   label: string;
   immunizationId: string;
-  evidence: VaccinationCertificateEvidence;
+  evidence: ExtendedVaccinationCertificateEvidence;
 };
 
-function unavailableEvidence(recordId: string): VaccinationCertificateEvidence {
+function unavailableEvidence(recordId: string): ExtendedVaccinationCertificateEvidence {
   return {
     recordId,
     fingerprint: "",
@@ -108,7 +105,7 @@ export default function NfcVaccinesCertificatesPage() {
       const { blob, filename } = certificateResult.value;
       const evidence =
         evidenceResult.status === "fulfilled"
-          ? evidenceResult.value
+          ? (evidenceResult.value as ExtendedVaccinationCertificateEvidence)
           : unavailableEvidence(immunization.id);
       closeCertificatePreview();
       const url = URL.createObjectURL(blob);
@@ -142,11 +139,11 @@ export default function NfcVaccinesCertificatesPage() {
     setCertificateEvidenceBusy(true);
     setCertificateError("");
     try {
-      const evidence = await medfinetClinicalApi.getImmunizationCertificateEvidence(
+      const evidence = (await medfinetClinicalApi.getImmunizationCertificateEvidence(
         access.organizationId,
         access.childId,
         immunizationId,
-      );
+      )) as ExtendedVaccinationCertificateEvidence;
       if (!mountedRef.current) return;
       setCertificatePreview((current) =>
         current && current.immunizationId === immunizationId
@@ -299,53 +296,13 @@ export default function NfcVaccinesCertificatesPage() {
                 className="mx-auto mt-4 max-h-[70vh] w-auto rounded-xl border border-slate-700 bg-white shadow-sm"
               />
 
-              <div className="mt-4 rounded-xl border border-slate-600 bg-slate-900/70 p-4">
-                <p className="flex items-center gap-2 font-semibold">
-                  {certificatePreview.evidence.status === "CONFIRMED" ? (
-                    <CheckCircle2 className="h-5 w-5 text-emerald-300" />
-                  ) : (
-                    <Blocks className="h-5 w-5 text-amber-300" />
-                  )}
-                  {certificatePreview.evidence.status === "CONFIRMED"
-                    ? `Verified on ${certificatePreview.evidence.network || "Algorand"}`
-                    : certificatePreview.evidence.status === "PENDING"
-                      ? "Certificate verification pending"
-                      : certificatePreview.evidence.status === "MISMATCH"
-                        ? "Certificate proof mismatch"
-                        : certificatePreview.evidence.status === "DISABLED"
-                          ? "Blockchain verification is not configured"
-                          : "Certificate proof is not currently confirmed"}
-                </p>
-                <p className="mt-2 text-xs leading-5 text-slate-400">
-                  Only the certificate fingerprint is anchored. Child identity
-                  and clinical fields are not written to Algorand.
-                </p>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {certificatePreview.evidence.explorerUrl && (
-                    <a
-                      href={certificatePreview.evidence.explorerUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 rounded-lg border border-slate-600 px-3 py-2 text-sm font-semibold text-cyan-200"
-                    >
-                      View proof <ExternalLink className="h-4 w-4" />
-                    </a>
-                  )}
-                  {certificatePreview.evidence.status !== "DISABLED" && (
-                    <button
-                      type="button"
-                      onClick={() => void refreshCertificateEvidence()}
-                      disabled={certificateEvidenceBusy}
-                      className="inline-flex items-center gap-2 rounded-lg border border-slate-600 px-3 py-2 text-sm font-semibold text-slate-200 disabled:opacity-60"
-                    >
-                      <RefreshCw
-                        className={`h-4 w-4 ${certificateEvidenceBusy ? "animate-spin" : ""}`}
-                      />
-                      Refresh proof
-                    </button>
-                  )}
-                </div>
+              <div className="mt-4">
+                <CertificateBlockchainEvidence
+                  evidence={certificatePreview.evidence}
+                  busy={certificateEvidenceBusy}
+                  onRefresh={() => void refreshCertificateEvidence()}
+                  tone="dark"
+                />
               </div>
 
               <a
