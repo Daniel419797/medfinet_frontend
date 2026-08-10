@@ -11,19 +11,16 @@ import {
   Syringe,
   X,
 } from "lucide-react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   medfinetClinicalApi,
   type VaccinationCertificateEvidence,
 } from "../../services/medfinetClinicalApi";
 import type { NfcImmunizationRecord } from "../../services/medfinetNfcApi";
-
-type NfcPwaAccessState = {
-  organizationId: string;
-  childId: string;
-  childName?: string;
-  immunizations: NfcImmunizationRecord[];
-};
+import {
+  clearNfcVaccineAccess,
+  readNfcVaccineAccess,
+} from "../../services/nfcSecureAccessStore";
 
 type CertificatePreview = {
   url: string;
@@ -51,32 +48,24 @@ function unavailableEvidence(recordId: string): VaccinationCertificateEvidence {
   };
 }
 
-function validAccessState(value: unknown): value is NfcPwaAccessState {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Partial<NfcPwaAccessState>;
-  return (
-    typeof candidate.organizationId === "string" &&
-    typeof candidate.childId === "string" &&
-    Array.isArray(candidate.immunizations)
-  );
-}
-
 export default function NfcVaccinesCertificatesPage() {
   const { publicId = "" } = useParams();
-  const location = useLocation();
   const navigate = useNavigate();
-  const access = validAccessState(location.state) ? location.state : null;
+  const [access] = useState(() => readNfcVaccineAccess(publicId));
   const [certificateDownloadId, setCertificateDownloadId] = useState<string | null>(null);
   const [certificateError, setCertificateError] = useState("");
   const [certificatePreview, setCertificatePreview] =
     useState<CertificatePreview | null>(null);
   const [certificateEvidenceBusy, setCertificateEvidenceBusy] = useState(false);
   const certificatePreviewUrl = useRef<string | null>(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
     return () => {
+      mountedRef.current = false;
       if (certificatePreviewUrl.current) {
         URL.revokeObjectURL(certificatePreviewUrl.current);
+        certificatePreviewUrl.current = null;
       }
     };
   }, []);
@@ -87,6 +76,11 @@ export default function NfcVaccinesCertificatesPage() {
     }
     certificatePreviewUrl.current = null;
     setCertificatePreview(null);
+  }
+
+  function backToCard() {
+    clearNfcVaccineAccess(publicId);
+    navigate(`/nfc/tap/${encodeURIComponent(publicId)}`, { replace: true });
   }
 
   async function viewCertificate(immunization: NfcImmunizationRecord) {
@@ -106,6 +100,7 @@ export default function NfcVaccinesCertificatesPage() {
           immunization.id,
         ),
       ]);
+      if (!mountedRef.current) return;
       if (certificateResult.status === "rejected") {
         throw certificateResult.reason;
       }
@@ -116,6 +111,10 @@ export default function NfcVaccinesCertificatesPage() {
           : unavailableEvidence(immunization.id);
       closeCertificatePreview();
       const url = URL.createObjectURL(blob);
+      if (!mountedRef.current) {
+        URL.revokeObjectURL(url);
+        return;
+      }
       certificatePreviewUrl.current = url;
       setCertificatePreview({
         url,
@@ -125,37 +124,43 @@ export default function NfcVaccinesCertificatesPage() {
         evidence,
       });
     } catch (caught) {
+      if (!mountedRef.current) return;
       setCertificateError(
         caught instanceof Error
           ? caught.message
           : "Could not load the vaccination certificate",
       );
     } finally {
-      setCertificateDownloadId(null);
+      if (mountedRef.current) setCertificateDownloadId(null);
     }
   }
 
   async function refreshCertificateEvidence() {
     if (!access || !certificatePreview) return;
+    const immunizationId = certificatePreview.immunizationId;
     setCertificateEvidenceBusy(true);
     setCertificateError("");
     try {
       const evidence = await medfinetClinicalApi.getImmunizationCertificateEvidence(
         access.organizationId,
         access.childId,
-        certificatePreview.immunizationId,
+        immunizationId,
       );
+      if (!mountedRef.current) return;
       setCertificatePreview((current) =>
-        current ? { ...current, evidence } : current,
+        current && current.immunizationId === immunizationId
+          ? { ...current, evidence }
+          : current,
       );
     } catch (caught) {
+      if (!mountedRef.current) return;
       setCertificateError(
         caught instanceof Error
           ? caught.message
           : "Could not refresh certificate verification",
       );
     } finally {
-      setCertificateEvidenceBusy(false);
+      if (mountedRef.current) setCertificateEvidenceBusy(false);
     }
   }
 
@@ -166,13 +171,13 @@ export default function NfcVaccinesCertificatesPage() {
           <ShieldCheck className="h-10 w-10 text-cyan-300" />
           <h1 className="mt-5 text-2xl font-bold">Secure NFC view expired</h1>
           <p className="mt-3 text-sm leading-6 text-slate-300">
-            Vaccination records are only carried into this page from a verified
-            NFC tap and successful sign-in. Tap the card again to start a new
-            secure access session.
+            Vaccination records are only kept in memory after a verified NFC tap
+            and successful sign-in. Tap the card again to start a new secure
+            access session.
           </p>
           <button
             type="button"
-            onClick={() => navigate(`/nfc/tap/${publicId}`, { replace: true })}
+            onClick={backToCard}
             className="mt-6 w-full rounded-xl bg-cyan-400 px-4 py-3 font-semibold text-slate-950 hover:bg-cyan-300"
           >
             Return to NFC card
@@ -187,7 +192,7 @@ export default function NfcVaccinesCertificatesPage() {
       <section className="mx-auto max-w-3xl">
         <button
           type="button"
-          onClick={() => navigate(`/nfc/tap/${publicId}`, { replace: true })}
+          onClick={backToCard}
           className="inline-flex items-center gap-2 text-sm font-semibold text-cyan-300"
         >
           <ArrowLeft size={17} /> Back to card
