@@ -29,6 +29,9 @@ const AccountWorkspace = lazy(() => import("./pages/common/AccountWorkspace"));
 const ClinicalOperations = lazy(
   () => import("./pages/clinical/ClinicalOperations"),
 );
+const WorkerClinicalWorkspace = lazy(
+  () => import("./pages/clinical/WorkerClinicalWorkspace"),
+);
 const HealthWorkerDashboard = lazy(
   () => import("./pages/health-worker/HealthWorkerDashboard"),
 );
@@ -185,16 +188,7 @@ export default function App() {
 
             <Route
               element={
-                <AuthenticatedRoute
-                  roles={[
-                    "OWNER",
-                    "ADMIN",
-                    "HEALTH_WORKER",
-                    "NUTRITION_WORKER",
-                    "EMERGENCY_COORDINATOR",
-                    "CAREGIVER",
-                  ]}
-                >
+                <AuthenticatedRoute roles={["CAREGIVER"]}>
                   <DashboardLayout />
                 </AuthenticatedRoute>
               }
@@ -207,22 +201,8 @@ export default function App() {
               />
               <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/profile" element={<Navigate to="/account" replace />} />
-              <Route
-                path="/rewards"
-                element={
-                  <AuthenticatedRoute roles={["CAREGIVER"]}>
-                    <CaregiverRewards />
-                  </AuthenticatedRoute>
-                }
-              />
-              <Route
-                path="/privacy"
-                element={
-                  <AuthenticatedRoute roles={["CAREGIVER"]}>
-                    <CaregiverPrivacy />
-                  </AuthenticatedRoute>
-                }
-              />
+              <Route path="/rewards" element={<CaregiverRewards />} />
+              <Route path="/privacy" element={<CaregiverPrivacy />} />
             </Route>
 
             <Route
@@ -230,8 +210,6 @@ export default function App() {
               element={
                 <AuthenticatedRoute
                   roles={[
-                    "OWNER",
-                    "ADMIN",
                     "HEALTH_WORKER",
                     "NUTRITION_WORKER",
                     "EMERGENCY_COORDINATOR",
@@ -241,25 +219,72 @@ export default function App() {
                 </AuthenticatedRoute>
               }
             >
-              <Route index element={<Navigate to="clinical" replace />} />
+              <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<HealthWorkerDashboard />} />
-              <Route path="clinical" element={<ClinicalOperations />} />
-              <Route path="climate" element={<ResponseWorklists />} />
+              <Route
+                path="clinical"
+                element={
+                  <AuthenticatedRoute roles={["HEALTH_WORKER", "NUTRITION_WORKER"]}>
+                    <WorkerClinicalWorkspace />
+                  </AuthenticatedRoute>
+                }
+              />
+              <Route
+                path="climate"
+                element={
+                  <AuthenticatedRoute roles={["EMERGENCY_COORDINATOR"]}>
+                    <ResponseWorklists />
+                  </AuthenticatedRoute>
+                }
+              />
               <Route path="offline" element={<OfflineSync />} />
-              <Route path="nfc" element={<NfcScannerPage />} />
-              <Route path="ai/assistant" element={<AiAssistant />} />
-              <Route path="ai/timeline" element={<AiTimelineSummary />} />
+              <Route
+                path="nfc"
+                element={
+                  <AuthenticatedRoute roles={["HEALTH_WORKER", "EMERGENCY_COORDINATOR"]}>
+                    <NfcScannerPage />
+                  </AuthenticatedRoute>
+                }
+              />
+              <Route
+                path="ai/assistant"
+                element={
+                  <AuthenticatedRoute roles={["HEALTH_WORKER"]}>
+                    <AiAssistant />
+                  </AuthenticatedRoute>
+                }
+              />
+              <Route
+                path="ai/timeline"
+                element={
+                  <AuthenticatedRoute roles={["HEALTH_WORKER"]}>
+                    <AiTimelineSummary />
+                  </AuthenticatedRoute>
+                }
+              />
               <Route
                 path="nfc/children/:childId/clinical"
-                element={<NfcClinicalRecordPage />}
+                element={
+                  <AuthenticatedRoute roles={["HEALTH_WORKER"]}>
+                    <NfcClinicalRecordPage />
+                  </AuthenticatedRoute>
+                }
               />
               <Route
                 path="nfc/children/:childId/vaccination"
-                element={<NfcVaccinationPage />}
+                element={
+                  <AuthenticatedRoute roles={["HEALTH_WORKER"]}>
+                    <NfcVaccinationPage />
+                  </AuthenticatedRoute>
+                }
               />
               <Route
                 path="nfc/children/:childId/emergency"
-                element={<NfcEmergencyPage />}
+                element={
+                  <AuthenticatedRoute roles={["HEALTH_WORKER", "EMERGENCY_COORDINATOR"]}>
+                    <NfcEmergencyPage />
+                  </AuthenticatedRoute>
+                }
               />
             </Route>
 
