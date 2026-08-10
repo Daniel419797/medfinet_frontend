@@ -1,10 +1,16 @@
 import { useContext, useState } from "react";
 import { Calendar, ChevronLeft, Download, Loader2, Shield } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
+import CertificateBlockchainEvidence, {
+  unavailableEvidence,
+} from "../../components/clinical/CertificateBlockchainEvidence";
 import { PageFeedback } from "../../components/common/PageFeedback";
 import UserContext from "../../contexts/UserContext";
 import { useApi } from "../../hooks/useMedfinetApi";
-import { medfinetClinicalApi } from "../../services/medfinetClinicalApi";
+import {
+  medfinetClinicalApi,
+  type VaccinationCertificateEvidence,
+} from "../../services/medfinetClinicalApi";
 import { medfinetIdentityApi } from "../../services/medfinetIdentityApi";
 
 export default function VaccinationHistory() {
@@ -12,6 +18,10 @@ export default function VaccinationHistory() {
   const { organizationId } = useContext(UserContext);
   const [certificateDownloadId, setCertificateDownloadId] = useState<string | null>(null);
   const [certificateError, setCertificateError] = useState<string | null>(null);
+  const [evidenceBusyId, setEvidenceBusyId] = useState<string | null>(null);
+  const [evidenceByImmunization, setEvidenceByImmunization] = useState<
+    Record<string, VaccinationCertificateEvidence>
+  >({});
   const validId = Boolean(id && id !== "all");
   const childRequest = useApi(
     () =>
@@ -33,16 +43,61 @@ export default function VaccinationHistory() {
     ? "Select a child profile to view its health record."
     : childRequest.error || timelineRequest.error;
 
+  const refreshEvidence = async (immunizationId: string) => {
+    if (!organizationId || !id) return;
+    setEvidenceBusyId(immunizationId);
+    setCertificateError(null);
+    try {
+      const evidence = await medfinetClinicalApi.getImmunizationCertificateEvidence(
+        organizationId,
+        id,
+        immunizationId,
+      );
+      setEvidenceByImmunization((current) => ({
+        ...current,
+        [immunizationId]: evidence,
+      }));
+    } catch (reason) {
+      setCertificateError(
+        reason instanceof Error
+          ? reason.message
+          : "Unable to refresh certificate blockchain evidence.",
+      );
+    } finally {
+      setEvidenceBusyId((current) =>
+        current === immunizationId ? null : current,
+      );
+    }
+  };
+
   const downloadCertificate = async (immunizationId: string) => {
     if (!organizationId || !id) return;
     setCertificateDownloadId(immunizationId);
     setCertificateError(null);
     try {
-      const { blob, filename } = await medfinetClinicalApi.downloadImmunizationCertificate(
-        organizationId,
-        id,
-        immunizationId,
-      );
+      const [certificateResult, evidenceResult] = await Promise.allSettled([
+        medfinetClinicalApi.downloadImmunizationCertificate(
+          organizationId,
+          id,
+          immunizationId,
+        ),
+        medfinetClinicalApi.getImmunizationCertificateEvidence(
+          organizationId,
+          id,
+          immunizationId,
+        ),
+      ]);
+      if (certificateResult.status === "rejected") {
+        throw certificateResult.reason;
+      }
+      setEvidenceByImmunization((current) => ({
+        ...current,
+        [immunizationId]:
+          evidenceResult.status === "fulfilled"
+            ? evidenceResult.value
+            : unavailableEvidence(immunizationId),
+      }));
+      const { blob, filename } = certificateResult.value;
       const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = objectUrl;
@@ -80,7 +135,8 @@ export default function VaccinationHistory() {
         </h1>
         <p className="mt-2 text-sm text-slate-600">
           Only immunization information authorized for your identity is
-          displayed.
+          displayed. Certificate blockchain evidence never publishes the child's
+          identity or vaccination details.
         </p>
       </header>
       <PageFeedback
@@ -118,48 +174,60 @@ export default function VaccinationHistory() {
               </div>
             </section>
             <section className="mt-6 space-y-3">
-              {vaccinations.map((vaccination) => (
-                <article
-                  key={vaccination.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="rounded-full bg-emerald-50 p-2 text-emerald-700">
-                      <Shield className="h-5 w-5" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex flex-col justify-between gap-2 sm:flex-row">
-                        <h2 className="font-bold text-slate-950">
-                          {vaccination.vaccineCode} · dose{" "}
-                          {vaccination.doseNumber}
-                        </h2>
-                        <span className="text-xs font-bold text-slate-500">
-                          {vaccination.status}
-                        </span>
+              {vaccinations.map((vaccination) => {
+                const evidence = evidenceByImmunization[vaccination.id];
+                return (
+                  <article
+                    key={vaccination.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="rounded-full bg-emerald-50 p-2 text-emerald-700">
+                        <Shield className="h-5 w-5" />
                       </div>
-                      <p className="mt-3 text-sm text-slate-600">
-                        <Calendar className="mr-1 inline h-4 w-4" />
-                        {new Date(vaccination.administeredAt).toLocaleString()}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => void downloadCertificate(vaccination.id)}
-                        disabled={certificateDownloadId !== null}
-                        className="mt-4 inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {certificateDownloadId === vaccination.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Download className="h-4 w-4" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-col justify-between gap-2 sm:flex-row">
+                          <h2 className="font-bold text-slate-950">
+                            {vaccination.vaccineCode} · dose{" "}
+                            {vaccination.doseNumber}
+                          </h2>
+                          <span className="text-xs font-bold text-slate-500">
+                            {vaccination.status}
+                          </span>
+                        </div>
+                        <p className="mt-3 text-sm text-slate-600">
+                          <Calendar className="mr-1 inline h-4 w-4" />
+                          {new Date(vaccination.administeredAt).toLocaleString()}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => void downloadCertificate(vaccination.id)}
+                          disabled={certificateDownloadId !== null}
+                          className="mt-4 inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {certificateDownloadId === vaccination.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Download className="h-4 w-4" />
+                          )}
+                          {certificateDownloadId === vaccination.id
+                            ? "Preparing certificate…"
+                            : "Download certificate"}
+                        </button>
+                        {evidence && (
+                          <div className="mt-4">
+                            <CertificateBlockchainEvidence
+                              evidence={evidence}
+                              busy={evidenceBusyId === vaccination.id}
+                              onRefresh={() => void refreshEvidence(vaccination.id)}
+                            />
+                          </div>
                         )}
-                        {certificateDownloadId === vaccination.id
-                          ? "Preparing certificate…"
-                          : "Download certificate"}
-                      </button>
+                      </div>
                     </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
               {!vaccinations.length && (
                 <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
                   <Shield className="mx-auto h-10 w-10 text-slate-400" />
