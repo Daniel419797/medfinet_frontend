@@ -10,9 +10,12 @@ import {
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import CertificateBlockchainEvidence, {
-  type ExtendedVaccinationCertificateEvidence,
+  unavailableEvidence,
 } from "../../components/clinical/CertificateBlockchainEvidence";
-import { medfinetClinicalApi } from "../../services/medfinetClinicalApi";
+import {
+  medfinetClinicalApi,
+  type VaccinationCertificateEvidence,
+} from "../../services/medfinetClinicalApi";
 import type { NfcImmunizationRecord } from "../../services/medfinetNfcApi";
 import {
   clearNfcVaccineAccess,
@@ -24,26 +27,8 @@ type CertificatePreview = {
   filename: string;
   label: string;
   immunizationId: string;
-  evidence: ExtendedVaccinationCertificateEvidence;
+  evidence: VaccinationCertificateEvidence;
 };
-
-function unavailableEvidence(recordId: string): ExtendedVaccinationCertificateEvidence {
-  return {
-    recordId,
-    fingerprint: "",
-    anchorId: "",
-    status: "UNAVAILABLE",
-    queued: false,
-    network: null,
-    txId: null,
-    blockHeight: null,
-    confirmedAt: null,
-    explorerUrl: null,
-    hashIntegrity: null,
-    noteIntegrity: null,
-    chainConfirmed: null,
-  };
-}
 
 export default function NfcVaccinesCertificatesPage() {
   const { publicId = "" } = useParams();
@@ -105,7 +90,7 @@ export default function NfcVaccinesCertificatesPage() {
       const { blob, filename } = certificateResult.value;
       const evidence =
         evidenceResult.status === "fulfilled"
-          ? (evidenceResult.value as ExtendedVaccinationCertificateEvidence)
+          ? evidenceResult.value
           : unavailableEvidence(immunization.id);
       closeCertificatePreview();
       const url = URL.createObjectURL(blob);
@@ -139,11 +124,11 @@ export default function NfcVaccinesCertificatesPage() {
     setCertificateEvidenceBusy(true);
     setCertificateError("");
     try {
-      const evidence = (await medfinetClinicalApi.getImmunizationCertificateEvidence(
+      const evidence = await medfinetClinicalApi.getImmunizationCertificateEvidence(
         access.organizationId,
         access.childId,
         immunizationId,
-      )) as ExtendedVaccinationCertificateEvidence;
+      );
       if (!mountedRef.current) return;
       setCertificatePreview((current) =>
         current && current.immunizationId === immunizationId
