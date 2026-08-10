@@ -5,7 +5,6 @@ export type MedfinetFacility = {
   name: string;
   code: string;
   isActive: boolean;
-  administrativeArea?: string | null;
   state?: string | null;
   lga?: string | null;
   ward?: string | null;
@@ -23,7 +22,6 @@ export type FacilityInput = {
   state?: string;
   lga?: string;
   ward?: string;
-  administrativeArea?: string;
   address?: string;
   phone?: string;
   openingHours?: Record<string, string>;
