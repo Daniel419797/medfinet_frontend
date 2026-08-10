@@ -9,8 +9,11 @@ import {
   UserCircle,
   WifiSlash,
 } from "@phosphor-icons/react";
+import { useContext } from "react";
 import { Outlet } from "react-router-dom";
 import { AppShell, type ShellNavigationGroup } from "../components/shell/AppShell";
+import UserContext from "../contexts/UserContext";
+import { canReadClinical } from "../utils/clinicalAccess";
 
 const navigation: ShellNavigationGroup[] = [
   {
@@ -40,8 +43,17 @@ const navigation: ShellNavigationGroup[] = [
 ];
 
 export default function HealthWorkerLayout() {
+  const { currentMembership } = useContext(UserContext);
+  const visibleNavigation = navigation.map((group) => ({
+    ...group,
+    items: group.items.filter(
+      (item) => item.path !== "/health-worker/clinical"
+        || canReadClinical(currentMembership?.role),
+    ),
+  }));
+
   return (
-    <AppShell navigation={navigation} homePath="/health-worker/dashboard" portalLabel="Care delivery">
+    <AppShell navigation={visibleNavigation} homePath="/health-worker/dashboard" portalLabel="Care delivery">
       <Outlet />
     </AppShell>
   );

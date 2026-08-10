@@ -33,6 +33,7 @@ import {
 } from '../../services/nfcDeviceKeyStore';
 import { rememberOfflineDevice } from '../../services/offlineSyncService';
 import { isMedfinetConnectivityError } from '../../services/medfinetApiClient';
+import { canReadClinical, canWriteClinical } from '../../utils/clinicalAccess';
 
 type ScanInput = {
   publicId: string;
@@ -91,10 +92,14 @@ function ClinicalResult({
   result,
   offlineSnapshot,
   pwaSurface,
+  mayReadClinical,
+  mayRecordVaccination,
 }: {
   result: NfcScanResult;
   offlineSnapshot: OfflineNfcSnapshot | null;
   pwaSurface: boolean;
+  mayReadClinical: boolean;
+  mayRecordVaccination: boolean;
 }) {
   const due = result.clinicalSummary.vaccination.dueCount;
   const overdue = result.clinicalSummary.vaccination.overdueCount;
@@ -155,7 +160,7 @@ function ClinicalResult({
           </div>
         )}
         {offlineSnapshot ? (
-          clinicalAllowed ? (
+          clinicalAllowed && mayRecordVaccination ? (
             <Link
               to={`${offlinePath}?type=CLINICAL.IMMUNIZATION_RECORD&childId=${encodeURIComponent(result.child.id)}`}
               className="nfc-action nfc-action-primary"
@@ -165,10 +170,10 @@ function ClinicalResult({
           ) : null
         ) : (
           <div className={`grid gap-3 ${clinicalAllowed ? 'sm:grid-cols-3' : ''}`}>
-            {clinicalAllowed ? <Link to={`${childBase}/${result.child.id}/clinical`} className="nfc-action">
-              <FileHeart size={18} /> Vaccinations &amp; certificates
+            {clinicalAllowed && mayReadClinical ? <Link to={`${childBase}/${result.child.id}/clinical`} className="nfc-action">
+              <FileHeart size={18} /> View clinical record
             </Link> : null}
-            {clinicalAllowed ? <Link to={`${childBase}/${result.child.id}/vaccination`} className="nfc-action nfc-action-primary">
+            {clinicalAllowed && mayRecordVaccination ? <Link to={`${childBase}/${result.child.id}/vaccination`} className="nfc-action nfc-action-primary">
               <Syringe size={18} /> Record vaccination
             </Link> : null}
             <Link to={`${childBase}/${result.child.id}/emergency`} className="nfc-action nfc-action-danger">
@@ -193,7 +198,7 @@ function ClinicalResult({
 }
 
 export default function NfcScannerPage() {
-  const { organizationId, user } = useContext(UserContext);
+  const { organizationId, user, currentMembership } = useContext(UserContext);
   const location = useLocation();
   const pwaSurface = location.pathname.startsWith('/nfc/');
   const [deviceId, setDeviceId] = useState(() => localStorage.getItem('medfinet.nfc.device-record-id') || '');
@@ -446,7 +451,13 @@ export default function NfcScannerPage() {
         <section className="space-y-4">
           {error ? <div role="alert" className="flex gap-3 rounded-2xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-900"><AlertTriangle className="shrink-0" size={20} /><div><strong>Card unavailable</strong><p className="mt-1">{error}</p></div></div> : null}
           {offlineCacheWarning ? <div role="status" className="flex gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"><AlertTriangle className="shrink-0" size={20} /><p>{offlineCacheWarning}</p></div> : null}
-          {result ? <ClinicalResult result={result} offlineSnapshot={offlineSnapshot} pwaSurface={pwaSurface} /> : (
+          {result ? <ClinicalResult
+            result={result}
+            offlineSnapshot={offlineSnapshot}
+            pwaSurface={pwaSurface}
+            mayReadClinical={canReadClinical(currentMembership?.role)}
+            mayRecordVaccination={canWriteClinical(currentMembership?.role)}
+          /> : (
             <div className="grid min-h-[420px] place-items-center rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
               <div><History className="mx-auto text-slate-300" size={48} /><h2 className="mt-4 text-lg font-semibold">Clinical access</h2><p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">The authorized child summary will appear here after a secure card scan.</p></div>
             </div>

@@ -207,7 +207,7 @@ export function NfcVaccinationPage() {
       <form onSubmit={submit} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
         <div className="grid gap-4 sm:grid-cols-2">
           {Object.entries(form).map(([name, value]) => (
-            <label key={name} className={name === 'notes' ? 'sm:col-span-2' : ''}><span className="mb-1.5 block text-sm font-semibold capitalize text-slate-700">{name.replace(/([A-Z])/g, ' $1')}</span><input required={name === 'vaccineCode' || name === 'doseNumber'} type={name === 'doseNumber' ? 'number' : 'text'} min={name === 'doseNumber' ? 1 : undefined} value={value} onChange={(event) => setForm((current) => ({ ...current, [name]: event.target.value }))} className="w-full rounded-xl border border-slate-300 px-3 py-2.5" /></label>
+            <label key={name} className={name === 'notes' ? 'sm:col-span-2' : ''}><span className="mb-1.5 block text-sm font-semibold capitalize text-slate-700">{name.replace(/([A-Z])/g, ' $1')}</span><input required={name === 'vaccineCode' || name === 'doseNumber'} type={name === 'doseNumber' ? 'number' : 'text'} min={name === 'doseNumber' ? 1 : undefined} max={name === 'doseNumber' ? 20 : undefined} value={value} onChange={(event) => setForm((current) => ({ ...current, [name]: event.target.value }))} className="w-full rounded-xl border border-slate-300 px-3 py-2.5" /></label>
           ))}
         </div>
         {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}

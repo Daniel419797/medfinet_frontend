@@ -21,6 +21,10 @@ import {
   NfcVaccinationPage,
 } from "./pages/nfc/NfcChildWorkflowPage";
 import { roleHomePath } from "./utils/roleNavigation";
+import {
+  CLINICAL_READ_ROLES,
+  CLINICAL_WRITE_ROLES,
+} from "./utils/clinicalAccess";
 
 const fieldRoles = [
   "OWNER",
@@ -108,7 +112,7 @@ export default function NfcApp() {
           <Route
             path="/nfc/children/:childId/clinical"
             element={
-              <AuthenticatedRoute roles={[...fieldRoles]}>
+              <AuthenticatedRoute roles={[...CLINICAL_READ_ROLES]}>
                 <NfcClinicalRecordPage />
               </AuthenticatedRoute>
             }
@@ -116,7 +120,7 @@ export default function NfcApp() {
           <Route
             path="/nfc/children/:childId/vaccination"
             element={
-              <AuthenticatedRoute roles={[...fieldRoles]}>
+              <AuthenticatedRoute roles={[...CLINICAL_WRITE_ROLES]}>
                 <NfcVaccinationPage />
               </AuthenticatedRoute>
             }

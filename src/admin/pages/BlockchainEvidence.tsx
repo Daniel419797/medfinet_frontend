@@ -18,6 +18,19 @@ import {
 
 const button = "border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold disabled:opacity-50";
 
+const eventLabels: Record<number, string> = {
+  0x01: "Consent granted",
+  0x02: "Consent withdrawn",
+  0x03: "Emergency access",
+  0x04: "Identity amendment",
+  0x05: "Data-subject request",
+  0x06: "NFC activated",
+  0x07: "NFC revoked",
+  0x08: "NFC replaced",
+  0x09: "Vaccination recorded",
+  0x0a: "Vaccination amended",
+};
+
 function BlockchainEvidenceWorkspace() {
   const { organizationId } = useContext(UserContext);
   const {
@@ -139,7 +152,7 @@ function BlockchainEvidenceWorkspace() {
             <thead className="bg-slate-50">
               <tr>
                 <th className="p-3">Anchor</th>
-                <th className="p-3">Category</th>
+                <th className="p-3">Evidence type</th>
                 <th className="p-3">Status</th>
                 <th className="p-3">Transaction</th>
                 <th className="p-3">Integrity</th>
@@ -149,7 +162,14 @@ function BlockchainEvidenceWorkspace() {
               {anchors.map((item) => (
                 <tr key={item.anchorId} className="border-t border-slate-200">
                   <td className="max-w-xs break-all p-3 font-mono text-xs">{item.anchorId}</td>
-                  <td className="p-3">{item.eventCategory || item.eventCode}</td>
+                  <td className="p-3">
+                    <p className="font-semibold">
+                      {eventLabels[item.eventCode] || `Event ${item.eventCode}`}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {item.eventCategory || "Uncategorized"}
+                    </p>
+                  </td>
                   <td className="p-3">{item.status}</td>
                   <td className="max-w-xs break-all p-3 text-xs">
                     {item.txId ? (

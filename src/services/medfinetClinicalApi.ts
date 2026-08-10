@@ -3,11 +3,26 @@ import {
   medfinetRequest as request,
 } from './medfinetApiClient';
 
+export type ClinicalImmunization = {
+  id: string;
+  vaccineCode: string;
+  doseNumber: number;
+  administeredAt: string;
+  lotNumber?: string | null;
+  route?: string | null;
+  site?: string | null;
+  notes?: string | null;
+  facilityId?: string | null;
+  programmeId?: string | null;
+  administeringSubjectId: string;
+  status: string;
+};
+
 export const medfinetClinicalApi = {
   // Timeline
   getClinicalTimeline(orgId: string, childId: string) {
     return request<{
-      immunizations: Array<{ id: string; vaccineCode: string; doseNumber: number; administeredAt: string; status: string }>;
+      immunizations: ClinicalImmunization[];
       growth: Array<{ id: string; measuredAt: string; weightGrams?: number; heightMillimeters?: number; muacMillimeters?: number; vitaminAAdministered: boolean; oedemaPresent: boolean; notes?: string; status: string }>;
       alerts: Array<{ id: string; category: string; severity: string; summary: string; status: string }>;
       allergies: Array<{ id: string; substanceDisplay: string; reaction?: string; severity: string; criticality: string; status: string }>;
@@ -20,14 +35,16 @@ export const medfinetClinicalApi = {
   // Immunizations
   recordImmunization(orgId: string, childId: string, body: {
     vaccineCode: string; doseNumber: number; administeredAt: string;
-    lotNumber?: string; route?: string; site?: string; notes?: string; sourceOperationId?: string;
+    facilityId?: string; programmeId?: string; lotNumber?: string; route?: string;
+    site?: string; notes?: string; sourceOperationId?: string;
   }) {
     return request<{ id: string }>(`/children/${encodeURIComponent(childId)}/immunizations`, {
       method: 'POST', body, organizationId: orgId, purpose: 'immunization-recording',
     });
   },
   amendImmunization(orgId: string, immunizationId: string, body: {
-    administeredAt?: string; lotNumber?: string; notes?: string; reason: string;
+    vaccineCode?: string; doseNumber?: number; administeredAt?: string;
+    lotNumber?: string; route?: string; site?: string; notes?: string; reason: string;
   }) {
     return request(`/immunizations/${encodeURIComponent(immunizationId)}`, {
       method: 'PATCH', body, organizationId: orgId, purpose: 'immunization-amendment',
