@@ -18,7 +18,7 @@ export type MedfinetFacility = {
 };
 
 export type FacilityInput = {
-  name: string;
+  name?: string;
   code?: string;
   state?: string;
   lga?: string;
@@ -40,7 +40,7 @@ export const medfinetFacilityApi = {
       purpose: 'facility-management',
     });
   },
-  create(orgId: string, body: FacilityInput & { code: string }) {
+  create(orgId: string, body: FacilityInput & { name: string; code: string }) {
     return request<MedfinetFacility>('/facilities', {
       method: 'POST',
       body,
