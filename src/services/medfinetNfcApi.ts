@@ -129,6 +129,8 @@ export type NfcChallengeDevice = {
   publicKey: string;
 };
 
+const NFC_VACCINE_ACCESS_PURPOSE = 'vaccination-certificate-download';
+
 export const medfinetNfcApi = {
   createDraft(
     organizationId: string,
@@ -244,7 +246,7 @@ export const medfinetNfcApi = {
           ...(accessIntent ? { accessIntent } : {}),
         },
         purpose: accessIntent === 'IMMUNIZATION_CERTIFICATES'
-          ? 'nfc-immunization-certificate-access'
+          ? NFC_VACCINE_ACCESS_PURPOSE
           : 'nfc-card-resolution',
       }
     );
@@ -264,7 +266,7 @@ export const medfinetNfcApi = {
       method: 'POST',
       body,
       purpose: body.accessIntent === 'IMMUNIZATION_CERTIFICATES'
-        ? 'nfc-immunization-certificate-access'
+        ? NFC_VACCINE_ACCESS_PURPOSE
         : 'nfc-card-resolution',
     });
   },
