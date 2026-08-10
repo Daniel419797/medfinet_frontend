@@ -175,13 +175,17 @@ export default function NfcTapLanding() {
     setState({ kind: "resolving" });
     void (async () => {
       try {
-        const challenge = await medfinetNfcApi.createChallenge(card.publicId, {
-          deviceIdentifier: `${stableDeviceIdentifier()}:${user.id}`,
-          displayName: `NFC PWA · ${navigator.platform || "Browser"}`,
-          platform: "Web NFC PWA",
-          appVersion: "1.0.0",
-          publicKey: await devicePublicKeyPem(),
-        });
+        const challenge = await medfinetNfcApi.createChallenge(
+          card.publicId,
+          {
+            deviceIdentifier: `${stableDeviceIdentifier()}:${user.id}`,
+            displayName: `NFC PWA · ${navigator.platform || "Browser"}`,
+            platform: "Web NFC PWA",
+            appVersion: "1.0.0",
+            publicKey: await devicePublicKeyPem(),
+          },
+          "IMMUNIZATION_CERTIFICATES",
+        );
         const payload = scannerPayload({
           ...card,
           challengeToken: challenge.challengeToken,
