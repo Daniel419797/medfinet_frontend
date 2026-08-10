@@ -43,6 +43,27 @@ const emptyFacility: FacilityForm = {
 };
 const emptyProgramme = { name: "", code: "", startsAt: "", endsAt: "" };
 
+function openingHoursText(openingHours?: Record<string, string>) {
+  if (!openingHours) return "";
+  const entries = Object.entries(openingHours);
+  if (entries.length === 1 && entries[0][0] === "summary") {
+    return entries[0][1];
+  }
+  return entries.map(([key, value]) => `${key}: ${value}`).join(", ");
+}
+
+function openingHoursPayload(
+  value: string,
+  editingFacility: MedfinetFacility | null,
+): Record<string, string> {
+  const trimmed = value.trim();
+  const original = editingFacility?.openingHours || {};
+  if (editingFacility && trimmed === openingHoursText(original)) {
+    return original;
+  }
+  return trimmed ? { summary: trimmed } : {};
+}
+
 export default function OrganizationResources() {
   const { organizationId } = useContext(UserContext);
   const [tab, setTab] = useState<"facilities" | "programmes">("facilities");
@@ -96,12 +117,12 @@ export default function OrganizationResources() {
         ? {
             name: facility.name,
             code: facility.code,
-            state: facility.state || facility.administrativeArea || "",
+            state: facility.state || "",
             lga: facility.lga || "",
             ward: facility.ward || "",
             address: facility.address || "",
             phone: facility.phone || "",
-            openingHours: Object.values(facility.openingHours || {}).join(", "),
+            openingHours: openingHoursText(facility.openingHours),
             programmeCategories: (facility.programmeCategories || []).join(", "),
             isTemporary: facility.isTemporary,
             temporaryUntil: facility.temporaryUntil?.slice(0, 16) || "",
@@ -138,9 +159,10 @@ export default function OrganizationResources() {
       ward: facilityForm.ward.trim(),
       address: facilityForm.address.trim(),
       phone: facilityForm.phone.trim(),
-      openingHours: facilityForm.openingHours.trim()
-        ? { summary: facilityForm.openingHours.trim() }
-        : ({} as Record<string, string>),
+      openingHours: openingHoursPayload(
+        facilityForm.openingHours,
+        editingFacility,
+      ),
       programmeCategories: facilityForm.programmeCategories
         .split(",")
         .map((value) => value.trim())
@@ -439,6 +461,9 @@ export default function OrganizationResources() {
               onChange={(event) => setFacilityForm((current) => ({ ...current, openingHours: event.target.value }))}
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
             />
+            <span className="mt-1 block text-xs font-normal leading-5 text-slate-500">
+              Existing structured opening-hour keys are preserved unless you edit this field.
+            </span>
           </label>
           <label className="text-sm font-medium sm:col-span-2">
             Programme categories
