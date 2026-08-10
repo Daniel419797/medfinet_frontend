@@ -7,6 +7,7 @@ import { AuthenticatedRoute } from "./components/auth/AuthenticatedRoute";
 import { OfflineSyncCoordinator } from "./components/offline/OfflineSyncCoordinator";
 import AuthLayout from "./layouts/AuthLayout";
 import NfcTapLanding from "./pages/nfc/NfcTapLanding";
+import NfcVaccinesCertificatesPage from "./pages/nfc/NfcVaccinesCertificatesPage";
 import NfcProvisioningPage from "./pages/nfc/NfcProvisioningPage";
 import NfcScannerPage from "./pages/nfc/NfcScannerPage";
 import OfflineSync from "./pages/offline/OfflineSync";
@@ -81,6 +82,14 @@ export default function NfcApp() {
             }
           />
           <Route path="/nfc/tap/:publicId" element={<NfcTapLanding />} />
+          <Route
+            path="/nfc/tap/:publicId/vaccines"
+            element={
+              <AuthenticatedRoute>
+                <NfcVaccinesCertificatesPage />
+              </AuthenticatedRoute>
+            }
+          />
           <Route
             path="/nfc/scanner"
             element={
