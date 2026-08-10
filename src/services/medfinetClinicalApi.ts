@@ -41,7 +41,7 @@ export const medfinetClinicalApi = {
   },
   getNutritionTimeline(orgId: string, childId: string) {
     return request<ClinicalTimeline>(`/nutrition/children/${encodeURIComponent(childId)}/timeline`, {
-      organizationId: orgId, purpose: 'nutrition-record-view',
+      organizationId: orgId, purpose: 'clinical-record-view',
     });
   },
 
