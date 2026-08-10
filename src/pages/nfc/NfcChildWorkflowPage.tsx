@@ -1,10 +1,28 @@
 import { FormEvent, useContext, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, CheckCircle2, Download, Loader2, ShieldAlert, Syringe, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Blocks, CheckCircle2, Download, ExternalLink, Loader2, RefreshCw, ShieldAlert, Syringe, X } from 'lucide-react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { medfinetClinicalApi } from '../../services/medfinetClinicalApi';
+import { medfinetClinicalApi, type VaccinationCertificateEvidence } from '../../services/medfinetClinicalApi';
 import UserContext from '../../contexts/UserContext';
 
 type Timeline = Awaited<ReturnType<typeof medfinetClinicalApi.getClinicalTimeline>>;
+
+function unavailableEvidence(recordId: string): VaccinationCertificateEvidence {
+  return {
+    recordId,
+    fingerprint: '',
+    anchorId: '',
+    status: 'UNAVAILABLE',
+    queued: false,
+    network: null,
+    txId: null,
+    blockHeight: null,
+    confirmedAt: null,
+    explorerUrl: null,
+    hashIntegrity: null,
+    noteIntegrity: null,
+    chainConfirmed: null,
+  };
+}
 type EmergencyProfile = Awaited<ReturnType<typeof medfinetClinicalApi.getEmergencyProfile>>;
 
 function WorkflowShell({ title, children }: { title: string; children: React.ReactNode }) {
@@ -32,9 +50,12 @@ export function NfcClinicalRecordPage() {
     url: string;
     filename: string;
     label: string;
+    immunizationId: string;
+    evidence: VaccinationCertificateEvidence;
   } | null>(null);
   const certificatePreviewUrl = useRef<string | null>(null);
   const certificatePageMounted = useRef(true);
+  const [certificateEvidenceBusy, setCertificateEvidenceBusy] = useState(false);
   useEffect(() => {
     if (!organizationId) return;
     medfinetClinicalApi.getClinicalTimeline(organizationId, childId)
@@ -61,11 +82,23 @@ export function NfcClinicalRecordPage() {
     setCertificateDownloadId(immunization.id);
     setCertificateError('');
     try {
-      const { blob, filename } = await medfinetClinicalApi.downloadImmunizationCertificate(
-        organizationId,
-        childId,
-        immunization.id,
-      );
+      const [certificateResult, evidenceResult] = await Promise.allSettled([
+        medfinetClinicalApi.downloadImmunizationCertificate(
+          organizationId,
+          childId,
+          immunization.id,
+        ),
+        medfinetClinicalApi.getImmunizationCertificateEvidence(
+          organizationId,
+          childId,
+          immunization.id,
+        ),
+      ]);
+      if (certificateResult.status === 'rejected') throw certificateResult.reason;
+      const { blob, filename } = certificateResult.value;
+      const evidence = evidenceResult.status === 'fulfilled'
+        ? evidenceResult.value
+        : unavailableEvidence(immunization.id);
       const url = URL.createObjectURL(blob);
       if (!certificatePageMounted.current) {
         URL.revokeObjectURL(url);
@@ -77,6 +110,8 @@ export function NfcClinicalRecordPage() {
         url,
         filename: filename || 'vaccination-certificate.png',
         label: `${immunization.vaccineCode} dose ${immunization.doseNumber}`,
+        immunizationId: immunization.id,
+        evidence,
       });
     } catch (caught) {
       if (certificatePageMounted.current) {
@@ -88,6 +123,35 @@ export function NfcClinicalRecordPage() {
       }
     } finally {
       if (certificatePageMounted.current) setCertificateDownloadId(null);
+    }
+  }
+
+  async function refreshCertificateEvidence() {
+    if (!organizationId || !certificatePreview) return;
+    const immunizationId = certificatePreview.immunizationId;
+    setCertificateEvidenceBusy(true);
+    setCertificateError('');
+    try {
+      const evidence = await medfinetClinicalApi.getImmunizationCertificateEvidence(
+        organizationId,
+        childId,
+        immunizationId,
+      );
+      if (certificatePageMounted.current) {
+        setCertificatePreview((current) =>
+          current?.immunizationId === immunizationId ? { ...current, evidence } : current,
+        );
+      }
+    } catch (caught) {
+      if (certificatePageMounted.current) {
+        setCertificateError(
+          caught instanceof Error
+            ? caught.message
+            : 'Could not refresh Algorand verification',
+        );
+      }
+    } finally {
+      if (certificatePageMounted.current) setCertificateEvidenceBusy(false);
     }
   }
 
@@ -161,6 +225,65 @@ export function NfcClinicalRecordPage() {
                 alt={`Vaccination certificate for ${certificatePreview.label}`}
                 className="mx-auto mt-4 max-h-[70vh] w-auto rounded-xl border border-slate-200 shadow-sm"
               />
+              <div className={`mt-4 rounded-xl border p-4 ${
+                certificatePreview.evidence.status === 'CONFIRMED'
+                  ? 'border-emerald-300 bg-emerald-50 text-emerald-950'
+                  : certificatePreview.evidence.status === 'MISMATCH'
+                    ? 'border-rose-300 bg-rose-50 text-rose-950'
+                    : 'border-amber-300 bg-amber-50 text-amber-950'
+              }`}>
+                <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                  <div>
+                    <p className="flex items-center gap-2 font-bold">
+                      {certificatePreview.evidence.status === 'CONFIRMED'
+                        ? <CheckCircle2 className="h-5 w-5" />
+                        : <Blocks className="h-5 w-5" />}
+                      {certificatePreview.evidence.status === 'CONFIRMED'
+                        ? `Verified on ${certificatePreview.evidence.network || 'Algorand'}`
+                        : certificatePreview.evidence.status === 'PENDING'
+                          ? 'Algorand verification pending'
+                          : certificatePreview.evidence.status === 'UNCONFIRMED'
+                            ? 'Algorand transaction awaiting confirmation'
+                          : certificatePreview.evidence.status === 'DISABLED'
+                            ? 'Algorand verification is not configured'
+                            : certificatePreview.evidence.status === 'MISMATCH'
+                              ? 'Algorand proof mismatch'
+                              : 'Algorand verification is temporarily unavailable'}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 opacity-80">
+                      Only a cryptographic fingerprint is anchored. No child identity or medical details are written to Algorand.
+                    </p>
+                    {certificatePreview.evidence.txId && (
+                      <p className="mt-2 break-all font-mono text-xs">
+                        Transaction: {certificatePreview.evidence.txId}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    {certificatePreview.evidence.explorerUrl && (
+                      <a
+                        href={certificatePreview.evidence.explorerUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 rounded-lg border border-current/20 bg-white/70 px-3 py-2 text-sm font-bold"
+                      >
+                        View on explorer <ExternalLink className="h-4 w-4" />
+                      </a>
+                    )}
+                    {certificatePreview.evidence.status !== 'DISABLED' && (
+                      <button
+                        type="button"
+                        onClick={() => void refreshCertificateEvidence()}
+                        disabled={certificateEvidenceBusy}
+                        className="inline-flex items-center gap-2 rounded-lg border border-current/20 bg-white/70 px-3 py-2 text-sm font-bold disabled:opacity-60"
+                      >
+                        <RefreshCw className={`h-4 w-4 ${certificateEvidenceBusy ? 'animate-spin' : ''}`} />
+                        Refresh proof
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
               <a
                 href={certificatePreview.url}
                 download={certificatePreview.filename}
