@@ -43,6 +43,25 @@ function localDateInputValue() {
     .slice(0, 10);
 }
 
+function evidencePrivacyMessage(status: VaccinationCertificateEvidence['status']) {
+  if (status === 'CONFIRMED') {
+    return 'Verification confirmed: the Algorand transaction contains only a cryptographic fingerprint. No child identity or medical details are written to Algorand.';
+  }
+  if (status === 'UNCONFIRMED') {
+    return 'A transaction was found but is not yet confirmed. Medfinet does not treat it as verified, and child identity or medical details are not included in the blockchain payload.';
+  }
+  if (status === 'MISMATCH') {
+    return 'The located proof does not match the expected certificate fingerprint. Medfinet does not claim verification, and child identity or medical details are not published on-chain.';
+  }
+  if (status === 'PENDING') {
+    return 'A privacy-preserving proof is queued or awaiting a receipt. Child identity and medical details are not included in the blockchain payload.';
+  }
+  if (status === 'DISABLED') {
+    return 'Blockchain verification is disabled, so no Algorand anchor is being claimed. Certificate and child data remain off-chain.';
+  }
+  return 'Blockchain verification could not be confirmed. Medfinet does not claim an anchor until verification succeeds, and child identity or medical details are not published on-chain.';
+}
+
 function unavailableEvidence(recordId: string): VaccinationCertificateEvidence {
   return {
     recordId,
@@ -301,7 +320,7 @@ export function NfcClinicalRecordPage() {
                                 : 'Algorand verification is temporarily unavailable'}
                     </p>
                     <p className="mt-1 text-xs leading-5 opacity-80">
-                      Only a cryptographic fingerprint is anchored. No child identity or medical details are written to Algorand.
+                      {evidencePrivacyMessage(certificatePreview.evidence.status)}
                     </p>
                     {certificatePreview.evidence.txId && (
                       <p className="mt-2 break-all text-xs opacity-75">
